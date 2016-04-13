@@ -128,6 +128,13 @@ class extract_release(object):
 
 @buildcmd()
 @buildcmd_once()
+class check_fakeroot(object):
+    def run(self, s):
+        if os.geteuid() != 0:
+            raise BuilderError("This script needs to be run with fakeroot!")
+
+@buildcmd()
+@buildcmd_once()
 class check_root(object):
     def run(self, s):
         if os.geteuid() != 0:
