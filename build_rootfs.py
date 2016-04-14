@@ -48,7 +48,7 @@ class fetch_git_url(object):
 @ib.buildcmd()
 class setup_gbc(object):
     def run(self, s):
-        ib.check_fakeroot(s)
+        ib.check_root(s)
         self.tmp = ib.mkdtemp(s, path=os.getcwd()).path
         self.repo = "repo"
         self.today = datetime.datetime.now().strftime("%Y%m%d%H%M")
