@@ -2,6 +2,8 @@
 
 import image_builder as ib
 import os
+import sys
+import pickle
 import subprocess
 import textwrap
 import datetime
@@ -49,14 +51,15 @@ class fetch_git_url(object):
 @ib.buildcmd()
 class setup_gbc(object):
     def run(self, s):
-        self.tmp = ib.mkdtemp(s, path=os.getcwd()).path
-        self.repo = "repo"
-        self.in_sudo = False
-        self.in_fakeroot = False
-        self.today = datetime.datetime.now().strftime("%Y%m%d%H%M")
+        self.gbc = GlobalBuildContext()
+        self.gbc.tmp = ib.mkdtemp(s, path=os.getcwd()).path
+        self.gbc.repo = "repo"
+        self.gbc.in_sudo = False
+        self.gbc.in_fakeroot = False
+        self.gbc.today = datetime.datetime.now().strftime("%Y%m%d%H%M")
 
-        if not os.path.isdir(self.repo):
-            os.mkdir(self.repo)
+        if not os.path.isdir(self.gbc.repo):
+            os.mkdir(self.gbc.repo)
 
 @ib.buildcmd()
 class clone_linux(object):
@@ -262,7 +265,7 @@ class resume(object):
 
 with ib.builder() as s:
     if not resume(s).resumed:
-        gbc = setup_gbc(s)
+        gbc = setup_gbc(s).gbc
 
         clone_linux(s, gbc)
         clone_hyp(s, gbc)
