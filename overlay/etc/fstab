@@ -1,0 +1,5 @@
+/dev/mmcblk0p3  /              btrfs rw,relatime,compress=lzo,ssd,space_cache,subvol=rootfs 0 1
+/dev/mmcblk0p3  /home          btrfs rw,relatime,compress=lzo,ssd,space_cache,subvol=home   0 2
+/dev/mmcblk0p3  /var/log       btrfs rw,relatime,compress=lzo,ssd,space_cache,subvol=logs   0 2
+/dev/mmcblk0p2  /boot          ext4  rw,relatime                                            0 2
+/dev/mmcblk0p1  /boot/firmware vfat  defaults                                               0 2

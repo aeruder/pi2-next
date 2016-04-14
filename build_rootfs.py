@@ -19,6 +19,7 @@ LINUX_UPSTREAM_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/lin
 LINUX_STABLE_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git"
 FIRMWARE_VER = "master"
 FIRMWARE_URL = "http://github.com/raspberrypi/firmware"
+DEBIAN_VER = "jessie"
 
 class GlobalBuildContext:
     pass
@@ -48,9 +49,10 @@ class fetch_git_url(object):
 @ib.buildcmd()
 class setup_gbc(object):
     def run(self, s):
-        ib.check_root(s)
         self.tmp = ib.mkdtemp(s, path=os.getcwd()).path
         self.repo = "repo"
+        self.in_sudo = False
+        self.in_fakeroot = False
         self.today = datetime.datetime.now().strftime("%Y%m%d%H%M")
 
         if not os.path.isdir(self.repo):
@@ -194,21 +196,87 @@ class create_firmware_deb(object):
         ib.file.chmod(s, OPJ(gbc.firmware_deb_d, "DEBIAN", "control"), 0o644)
         ib.check_subprocess(s, [ "dpkg-deb", "-b", gbc.firmware_deb_d, gbc.firmware_deb ])
 
+@ib.buildcmd()
+class run_with_root(object):
+    def run(self, s, gbc, command, sudo=False, fakeroot=False):
+        launch_sub = False
+        out_file = None
+        sub_type = None
+        if sudo:
+            if gbc.in_sudo:
+                command(s, gbc)
+            else:
+                out_file = OPJ(gbc.tmp, "gbc_sudo")
+                launch_sub = True
+                sub_type = "sudo"
+        elif fakeroot:
+            if gbc.in_fakeroot:
+                command(s, gbc)
+            else:
+                out_file = OPJ(gbc.tmp, "gbc_fakeroot")
+                launch_sub = True
+                sub_type = "fakeroot"
+        else:
+            command(s, gbc)
+        if launch_sub:
+            with open(out_file, "wb") as f:
+                pickle.dump(gbc, f, protocol=pickle.HIGHEST_PROTOCOL)
+            ib.check_subprocess(s, [ sys.argv[0], "resume", sub_type, out_file, command.__name__ ])
+            with open(out_file, "rb") as f:
+                gbc = pickle.load(f)
+
+@ib.buildcmd()
+@ib.buildcmd_flatten()
+class run_with_sudo(object):
+    def run(self, s, gbc, command):
+        run_with_root(s, gbc, command, sudo=True)
+
+@ib.buildcmd()
+@ib.buildcmd_flatten()
+class run_with_fakeroot(object):
+    def run(self, s, gbc, command):
+        run_with_root(s, gbc, command, fakeroot=True)
+
+@ib.buildcmd()
+class resume(object):
+    def run(self, s):
+        self.resumed = False
+        if len(sys.argv) == 5 and sys.argv[1] == "resume":
+            if sys.argv[2] == "sudo":
+                with open(sys.argv[3], "rb") as f:
+                    gbc = pickle.load(f)
+                gbc.in_sudo = True
+                run_with_sudo(s, gbc, globals()[sys.argv[4]])
+                gbc.in_sudo = False
+                with open(sys.argv[3], "wb") as f:
+                    pickle.dump(gbc, f, protocol=pickle.HIGHEST_PROTOCOL)
+            elif sys.argv[2] == "fakeroot":
+                with open(sys.argv[3], "rb") as f:
+                    gbc = pickle.load(f)
+                gbc.in_fakeroot = True
+                run_with_fakeroot(s, gbc, globals()[sys.argv[4]])
+                gbc.in_fakeroot = False
+                with open(sys.argv[3], "wb") as f:
+                    pickle.dump(gbc, f, protocol=pickle.HIGHEST_PROTOCOL)
+            self.resumed = True
 
 with ib.builder() as s:
-    gbc = setup_gbc(s)
+    if not resume(s).resumed:
+        gbc = setup_gbc(s)
 
-    clone_linux(s, gbc)
-    clone_hyp(s, gbc)
-    clone_firmware(s, gbc)
-    clone_uboot(s, gbc)
+        clone_linux(s, gbc)
+        clone_hyp(s, gbc)
+        clone_firmware(s, gbc)
+        clone_uboot(s, gbc)
 
-    try:
-        # compile_linux(s, gbc)
-        compile_uboot(s, gbc)
-        compile_hyp(s, gbc)
+        try:
+            # compile_linux(s, gbc)
+            compile_uboot(s, gbc)
+            compile_hyp(s, gbc)
 
-        create_uboot_deb(s, gbc)
-        create_firmware_deb(s, gbc)
-    finally:
-        ib.subprocess(s, ['zsh'])
+            run_with_fakeroot(s, gbc, create_uboot_deb)
+            run_with_fakeroot(s, gbc, create_firmware_deb)
+
+            # create_debian(s, gbc)
+        finally:
+            ib.subprocess(s, ['zsh'])
