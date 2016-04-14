@@ -66,3 +66,11 @@ class chown(object):
         if not gid: gid = stat.st_gid
         s.debug("Changing ownership on %s to %d:%d", to_path, uid, gid)
         os.chown(to_path, uid, gid, follow_symlinks=False)
+
+@ib.buildcmd()
+@ib.buildcmd_name("file.copy_r")
+@ib.buildcmd_flatten()
+class copy_r(object):
+    def run(self, s, from_path, to_path, **kwargs):
+        s.debug("Copying %s to %s", from_path, to_path)
+        shutil.copytree(from_path, to_path, **kwargs)

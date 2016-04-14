@@ -1,0 +1,41 @@
+baudrate=115200
+bootcmd=\
+ run cmd_loadcfg.kernel ;\
+ run cmd_loadcfg.root ;\
+ setenv cmd_load.user "" ;\
+ run cmd_loadcfg.user ;\
+ run cmd_load.user ;\
+ run cmd_load.bootargs &&\
+ run cmd_load.initrd &&\
+ run cmd_load.kernel &&\
+ bootz $kernel_addr_r $ramdisk_addr_r:$ramdisk_size $fdt_addr_r
+bootdelay=2
+fdt_high=ffffffff
+initrd_high=ffffffff
+fdt_addr_r=0x00000100
+pxefile_addr_r=0x00100000
+kernel_addr_r=0x01000000
+scriptaddr=0x02000000
+ramdisk_addr_r=0x02100000
+cmd_load.ramdisk=\
+ ext4load mmc 0:2 $ramdisk_addr_r $current_initrd &&\
+ setenv ramdisk_size $filesize
+cmd_load.kernel=\
+ ext4load mmc 0:2 $kernel_addr_r $current_kernel &&\
+ setenv kernel_size $filesize
+cmd_loadcfg=\
+ ext4load mmc 0:2 $scriptaddr $cfg &&\
+ env import -t $scriptaddr $filesize
+cmd_loadcfg.kernel=\
+ setenv cfg "uboot_kernel.txt";\
+ run cmd_loadcfg
+cmd_loadcfg.root=\
+ setenv cfg "uboot_root.txt";\
+ run cmd_loadcfg
+cmd_loadcfg.user=\
+ setenv cfg "uboot_custom.txt";\
+ run cmd_loadcfg
+ethact=sms0
+stdin=serial,usbkbd
+stderr=serial,lcd
+stdout=serial,lcd

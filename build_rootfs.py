@@ -5,10 +5,9 @@ import os
 import subprocess
 import textwrap
 import datetime
+import shutil
 
 OPJ = os.path.join
-
-TODAY = datetime.datetime.now().strftime("%Y%m%d%H%M")
 
 UBOOT_VER = "v2016.03"
 UBOOT_URL = 'git://git.denx.de/u-boot.git'
@@ -21,111 +20,191 @@ LINUX_STABLE_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-s
 FIRMWARE_VER = "master"
 FIRMWARE_URL = "http://github.com/raspberrypi/firmware"
 
-def check_git_run(s, repo, cmd):
-    ib.check_subprocess(s, ["git", "-C", repo] + list(cmd))
+class GlobalBuildContext:
+    pass
 
-def git_run(s, repo, cmd):
-    return ib.subprocess(s, ["git", "-C", repo] + list(cmd)).returncode
+@ib.buildcmd()
+@ib.buildcmd_flatten()
+class check_git_run(object):
+    def run(self, s, repo, cmd):
+        ib.check_subprocess(s, ["git", "-C", repo] + list(cmd))
 
-def fetch_git_url(s, repo, remote, url):
-    if not os.path.isdir(repo):
-        ib.check_subprocess(s, ['git', 'clone', '--bare', url, repo])
-    if git_run(s, repo, [ 'remote', 'get-url', remote ]) != 0:
-        check_git_run(s, repo, [ 'remote', 'add', remote, url ])
-    check_git_run(s, repo, [ 'remote', 'set-url', remote, url ])
-    check_git_run(s, repo, [ 'fetch', remote ])
+@ib.buildcmd()
+@ib.buildcmd_flatten()
+class git_run(object):
+    def run(self, s, repo, cmd):
+        self.returncode = ib.subprocess(s, ["git", "-C", repo] + list(cmd)).returncode
+
+@ib.buildcmd()
+class fetch_git_url(object):
+    def run(self, s, repo, remote, url):
+        if not os.path.isdir(repo):
+            ib.check_subprocess(s, ['git', 'clone', '--bare', url, repo])
+        if git_run(s, repo, [ 'remote', 'get-url', remote ]).returncode != 0:
+            check_git_run(s, repo, [ 'remote', 'add', remote, url ])
+        check_git_run(s, repo, [ 'remote', 'set-url', remote, url ])
+        check_git_run(s, repo, [ 'fetch', remote ])
+
+@ib.buildcmd()
+class setup_gbc(object):
+    def run(self, s):
+        ib.check_fakeroot(s)
+        self.tmp = ib.mkdtemp(s, path=os.getcwd()).path
+        self.repo = "repo"
+        self.today = datetime.datetime.now().strftime("%Y%m%d%H%M")
+
+        if not os.path.isdir(self.repo):
+            os.mkdir(self.repo)
+
+@ib.buildcmd()
+class clone_linux(object):
+    def run(self, s, gbc):
+        gbc.linux_git = OPJ(gbc.repo, "linux.git")
+        gbc.linux = OPJ(gbc.tmp, "linux")
+        fetch_git_url(s, gbc.linux_git, "origin", LINUX_URL)
+        fetch_git_url(s, gbc.linux_git, "upstream", LINUX_UPSTREAM_URL)
+        fetch_git_url(s, gbc.linux_git, "stable", LINUX_STABLE_URL)
+        check_git_run(s, gbc.linux_git, [ 'worktree', 'add', '--detach',
+                gbc.linux, LINUX_VER ])
+        check_git_run(s, gbc.linux, [ 'am', OPJ(os.getcwd(),
+                'patches',
+                '0001-Fix-deprecated-get_user_pages-page_cache_release.patch') ])
+
+@ib.buildcmd()
+class clone_hyp(object):
+    def run(self, s, gbc):
+        gbc.hyp_git = OPJ(gbc.repo, "hyp.git")
+        gbc.hyp = OPJ(gbc.tmp, "hyp")
+        fetch_git_url(s, gbc.hyp_git, "origin", HYP_URL)
+        check_git_run(s, gbc.hyp_git, [ 'worktree', 'add', '--detach',
+                gbc.hyp, HYP_VER ])
+
+@ib.buildcmd()
+class clone_firmware(object):
+    def run(self, s, gbc):
+        gbc.firmware_git = OPJ(gbc.repo, "firmware.git")
+        gbc.firmware = OPJ(gbc.tmp, "firmware")
+        gbc.firmware_deb_d = OPJ(gbc.tmp, 'firmware-deb')
+        gbc.firmware_deb = OPJ(gbc.tmp, "raspberrypi-firmware-git-{0}-1_armhf.deb".format(gbc.today))
+        fetch_git_url(s, gbc.firmware_git, "origin", FIRMWARE_URL)
+        check_git_run(s, gbc.firmware_git, [ 'worktree', 'add', '--detach',
+                gbc.firmware, FIRMWARE_VER ])
+
+@ib.buildcmd()
+class clone_uboot(object):
+    def run(self, s, gbc):
+        gbc.uboot_git = OPJ(gbc.repo, "u-boot.git")
+        gbc.uboot = OPJ(gbc.tmp, "u-boot")
+        gbc.uboot_deb_d = OPJ(gbc.tmp, 'u-boot-deb')
+        gbc.uboot_deb = OPJ(gbc.tmp, "u-boot-git-{0}-1_armhf.deb".format(gbc.today))
+        fetch_git_url(s, gbc.uboot_git, "origin", UBOOT_URL)
+        check_git_run(s, gbc.uboot_git, [ 'worktree', 'add', '--detach',
+                gbc.uboot, UBOOT_VER ])
+
+@ib.buildcmd()
+class compile_linux(object):
+    def run(self, s, gbc):
+        ib.check_subprocess(s, ['cp', 'linux-config', OPJ(gbc.linux, '.config')])
+        ib.check_subprocess(s, ['make', '-C', gbc.linux, 'oldconfig'], stdin=subprocess.DEVNULL)
+        ib.check_subprocess(s, ['make', '-j8', '-C', gbc.linux, 'deb-pkg'])
+
+@ib.buildcmd()
+class compile_uboot(object):
+    def run(self, s, gbc):
+        ib.check_subprocess(s, ['make', '-C', gbc.uboot, 'rpi_2_defconfig'])
+        ib.check_subprocess(s, ['make', '-j8', '-C', gbc.uboot])
+
+@ib.buildcmd()
+class compile_hyp(object):
+    def run(self, s, gbc):
+        ib.check_subprocess(s, ['make', '-C', gbc.hyp])
+
+@ib.buildcmd()
+class create_uboot_deb(object):
+    def run(self, s, gbc):
+        ib.file.install_dir(s, gbc.uboot_deb_d, 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "boot"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "boot", "firmware"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "etc"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "etc", "kernel"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "etc", "kernel", "postinst.d"), 0, 0, 0o755)
+        ib.file.install(s, OPJ("u-boot-deb", "zz-u-boot"),
+                OPJ(gbc.uboot_deb_d, "etc", "kernel", "postinst.d", "zz-u-boot"), 0, 0, 0o755)
+        ib.file.install(s, OPJ("u-boot-deb", "config.txt"),
+                OPJ(gbc.uboot_deb_d, "boot", "firmware", "config.txt"), 0, 0, 0o644)
+        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "DEBIAN"), 0, 0, 0o755)
+        with open(OPJ(gbc.uboot_deb_d, "DEBIAN", "conffiles"), "w") as f:
+            print(textwrap.dedent("""\
+                    /boot/firmware/config.txt
+                    /boot/firmware/uboot.env"""), file=f)
+        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "DEBIAN", "conffiles"), 0o644)
+        with open(OPJ(gbc.uboot_deb_d, "DEBIAN", "control"), "w") as f:
+            print(textwrap.dedent("""\
+                    Package: u-boot-git
+                    Version: {0}-1
+                    Section: kernel
+                    Priority: optional
+                    Architecture: armhf
+                    Maintainer: Andrew Ruder <andy@aeruder.net>
+                    Description: U-Boot for raspberry pi 2 + 3 with HYP
+                      This is a debian package generated from the u-boot git repository""").format(gbc.today),
+                    file=f)
+        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "DEBIAN", "control"), 0o644)
+        with open("u-boot-env.txt", "r") as fin:
+            with open(OPJ(gbc.tmp, "u-boot-env-stripped.txt"), "wb") as fout:
+                ib.check_subprocess(s, [ 'bash', OPJ("utils", "env_filter.sh") ],
+                        stdin=fin, stdout=fout)
+        ib.check_subprocess(s, [ OPJ(gbc.uboot, "tools", "mkenvimage"), "-p", "0",
+            "-s", "16384", "-o", OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.env"),
+            OPJ(gbc.tmp, "u-boot-env-stripped.txt") ])
+        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.env"), 0o644)
+
+        with open(OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.hyp"), "wb") as f:
+            ib.check_subprocess(s, [ 'cat', OPJ(gbc.hyp, "bootblk.bin"),
+                                            OPJ(gbc.uboot, "u-boot.bin") ], stdout=f)
+        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.hyp"), 0o644)
+        ib.check_subprocess(s, [ "dpkg-deb", "-b", gbc.uboot_deb_d, gbc.uboot_deb ])
+
+@ib.buildcmd()
+class create_firmware_deb(object):
+    def run(self, s, gbc):
+        ib.file.install_dir(s, gbc.firmware_deb_d, 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(gbc.firmware_deb_d, "boot"), 0, 0, 0o755)
+        ib.file.copy_r(s, OPJ(gbc.firmware, "boot"),
+                OPJ(gbc.firmware_deb_d, "boot", "firmware"))
+        ib.check_subprocess(s, [ 'chmod', '-R', 'u=rwX,g=rX,o=rX',
+            OPJ(gbc.firmware_deb_d, "boot", "firmware") ])
+
+        ib.file.install_dir(s, OPJ(gbc.firmware_deb_d, "DEBIAN"), 0, 0, 0o755)
+        with open(OPJ(gbc.firmware_deb_d, "DEBIAN", "control"), "w") as f:
+            print(textwrap.dedent("""\
+                    Package: raspberrypi-firmware-git
+                    Version: {0}-1
+                    Section: kernel
+                    Priority: optional
+                    Architecture: armhf
+                    Maintainer: Andrew Ruder <andy@aeruder.net>
+                    Description: Raspberry-pi firmware
+                      This is a debian package generated from the raspberrypi firmware git repository""").format(gbc.today),
+                    file=f)
+        ib.file.chmod(s, OPJ(gbc.firmware_deb_d, "DEBIAN", "control"), 0o644)
+        ib.check_subprocess(s, [ "dpkg-deb", "-b", gbc.firmware_deb_d, gbc.firmware_deb ])
+
 
 with ib.builder() as s:
-    ib.check_fakeroot(s)
-    tmp = ib.mkdtemp(s, path=os.getcwd()).path
+    gbc = setup_gbc(s)
 
-    repo_d = 'repo'
-    uboot_repo_d = OPJ(repo_d, 'u-boot.git')
-    uboot_tmp_repo_d = OPJ(tmp, 'u-boot')
-    hyp_repo_d = OPJ(repo_d, 'hyp.git')
-    hyp_tmp_repo_d = OPJ(tmp, 'hyp')
-    linux_repo_d = OPJ(repo_d, 'linux.git')
-    linux_tmp_repo_d = OPJ(tmp, 'linux')
-    firmware_repo_d = OPJ(repo_d, 'firmware.git')
-    firmware_tmp_repo_d = OPJ(tmp, 'firmware')
-    uboot_deb_d = OPJ(tmp, 'u-boot-deb')
-    uboot_deb = OPJ(tmp, "u-boot-git-{0}-1_armhf.deb".format(TODAY))
+    clone_linux(s, gbc)
+    clone_hyp(s, gbc)
+    clone_firmware(s, gbc)
+    clone_uboot(s, gbc)
 
-    if not os.path.isdir(repo_d):
-        os.mkdir(repo_d)
+    try:
+        compile_linux(s, gbc)
+        compile_uboot(s, gbc)
+        compile_hyp(s, gbc)
 
-    # fetch_git_url(s, uboot_repo_d, 'origin', UBOOT_URL)
-    # fetch_git_url(s, hyp_repo_d, 'origin', HYP_URL)
-    # fetch_git_url(s, linux_repo_d, 'origin', LINUX_URL)
-    # fetch_git_url(s, linux_repo_d, 'upstream', LINUX_UPSTREAM_URL)
-    # fetch_git_url(s, linux_repo_d, 'stable', LINUX_STABLE_URL)
-    # fetch_git_url(s, firmware_repo_d, 'origin', FIRMWARE_URL)
-
-    check_git_run(s, uboot_repo_d, [ 'worktree', 'add', '--detach',
-            uboot_tmp_repo_d, UBOOT_VER ])
-    check_git_run(s, hyp_repo_d, [ 'worktree', 'add', '--detach',
-            hyp_tmp_repo_d, HYP_VER ])
-    # check_git_run(s, linux_repo_d, [ 'worktree', 'add', '--detach',
-    #         linux_tmp_repo_d, LINUX_VER ])
-    check_git_run(s, firmware_repo_d, [ 'worktree', 'add', '--detach',
-            firmware_tmp_repo_d, FIRMWARE_VER ])
-
-    # check_git_run(s, linux_tmp_repo_d, [ 'am',
-    #         OPJ(os.getcwd(),
-    #                      'patches',
-    #                      '0001-Fix-deprecated-get_user_pages-page_cache_release.patch') ])
-
-    ib.check_subprocess(s, ['make', '-C', hyp_tmp_repo_d])
-    ib.check_subprocess(s, ['make', '-C', uboot_tmp_repo_d, 'rpi_2_defconfig'])
-    ib.check_subprocess(s, ['make', '-j8', '-C', uboot_tmp_repo_d])
-
-    # ib.check_subprocess(s, ['cp', 'linux-config', OPJ(linux_tmp_repo_d, '.config')])
-    # ib.check_subprocess(s, ['make', '-C', linux_tmp_repo_d, 'oldconfig'], stdin=subprocess.DEVNULL)
-    # ib.check_subprocess(s, ['make', '-j8', '-C', linux_tmp_repo_d, 'deb-pkg'])
-
-    create_uboot_package(s, uboot_deb_d, uboot_deb
-
-    ib.file.install_dir(s, uboot_deb_d, 0, 0, 0o755)
-    ib.file.install_dir(s, OPJ(uboot_deb_d, "boot"), 0, 0, 0o755)
-    ib.file.install_dir(s, OPJ(uboot_deb_d, "boot", "firmware"), 0, 0, 0o755)
-    ib.file.install_dir(s, OPJ(uboot_deb_d, "etc"), 0, 0, 0o755)
-    ib.file.install_dir(s, OPJ(uboot_deb_d, "etc", "kernel"), 0, 0, 0o755)
-    ib.file.install_dir(s, OPJ(uboot_deb_d, "etc", "kernel", "postinst.d"), 0, 0, 0o755)
-    ib.file.install(s, OPJ("u-boot-deb", "zz-u-boot"),
-            OPJ(uboot_deb_d, "etc", "kernel", "postinst.d", "zz-u-boot"), 0, 0, 0o755)
-    ib.file.install(s, OPJ("u-boot-deb", "config.txt"),
-            OPJ(uboot_deb_d, "boot", "firmware", "config.txt"), 0, 0, 0o644)
-    ib.file.install_dir(s, OPJ(uboot_deb_d, "DEBIAN"), 0, 0, 0o755)
-    with open(OPJ(uboot_deb_d, "DEBIAN", "conffiles"), "w") as f:
-        print(textwrap.dedent("""\
-                /boot/firmware/config.txt
-                /boot/firmware/uboot.env"""), file=f)
-    ib.file.chmod(s, OPJ(uboot_deb_d, "DEBIAN", "conffiles"), 0o644)
-    with open(OPJ(uboot_deb_d, "DEBIAN", "control"), "w") as f:
-        print(textwrap.dedent("""\
-                Package: u-boot-git
-                Version: {0}
-                Section: kernel
-                Priority: optional
-                Architecture: armhf
-                Maintainer: Andrew Ruder <andy@aeruder.net>
-                Description: U-Boot for raspberry pi 2 + 3 with HYP
-                  This is a debian package generated from the u-boot git repository""").format(TODAY),
-                file=f)
-    ib.file.chmod(s, OPJ(uboot_deb_d, "DEBIAN", "control"), 0o644)
-    with open("u-boot-env.txt", "r") as fin:
-        with open(OPJ(tmp, "u-boot-env-stripped.txt"), "wb") as fout:
-            ib.check_subprocess(s, [ 'bash', OPJ("utils", "env_filter.sh") ],
-                    stdin=fin, stdout=fout)
-    ib.check_subprocess(s, [ OPJ(uboot_tmp_repo_d, "tools", "mkenvimage"), "-p", "0",
-        "-s", "16384", "-o", OPJ(uboot_deb_d, "boot", "firmware", "uboot.env"),
-        OPJ(tmp, "u-boot-env-stripped.txt") ])
-    ib.file.chmod(s, OPJ(uboot_deb_d, "boot", "firmware", "uboot.env"), 0o644)
-
-    with open(OPJ(uboot_deb_d, "boot", "firmware", "uboot.hyp"), "wb") as f:
-        ib.check_subprocess(s, [ 'cat', OPJ(hyp_tmp_repo_d, "bootblk.bin"),
-                                        OPJ(uboot_tmp_repo_d, "u-boot.bin") ], stdout=f)
-    ib.file.chmod(s, OPJ(uboot_deb_d, "boot", "firmware", "uboot.hyp"), 0o644)
-    ib.check_subprocess(s, [ "dpkg-deb", "-b", uboot_deb_d, uboot_deb ])
-
-    ib.subprocess(s, ['zsh'])
+        create_uboot_deb(s, gbc)
+        create_firmware_deb(s, gbc)
+    finally:
+        ib.subprocess(s, ['zsh'])

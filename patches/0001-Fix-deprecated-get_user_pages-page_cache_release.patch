@@ -1,0 +1,112 @@
+From c5000a08d5736883340c72007143ca9580caad40 Mon Sep 17 00:00:00 2001
+From: Andrew Ruder <andy@aeruder.net>
+Date: Tue, 12 Apr 2016 21:55:44 -0500
+Subject: [PATCH] Fix deprecated get_user_pages/page_cache_release
+
+Commit d4edcf0d5695 ("mm/gup: Switch all callers of get_user_pages() to
+not pass tsk/mm") switched get_user_pages() callers to the simpler model
+where they no longer pass in the thread and mm pointer.
+
+Commit 09cbfeaf1a5a ("mm, fs: get rid of PAGE_CACHE_* and
+page_cache_{get,release} macros") removed page_cache_release.
+
+Signed-off-by: Andrew Ruder <andy@aeruder.net>
+---
+ .../vc04_services/interface/vchiq_arm/vchiq_2835_arm.c  | 17 ++++++++---------
+ .../misc/vc04_services/interface/vchiq_arm/vchiq_arm.c  |  5 ++---
+ 2 files changed, 10 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/misc/vc04_services/interface/vchiq_arm/vchiq_2835_arm.c b/drivers/misc/vc04_services/interface/vchiq_arm/vchiq_2835_arm.c
+index c29040f..a3956a9 100644
+--- a/drivers/misc/vc04_services/interface/vchiq_arm/vchiq_2835_arm.c
++++ b/drivers/misc/vc04_services/interface/vchiq_arm/vchiq_2835_arm.c
+@@ -87,7 +87,7 @@ vchiq_doorbell_irq(int irq, void *dev_id);
+ 
+ static int
+ create_pagelist(char __user *buf, size_t count, unsigned short type,
+-                struct task_struct *task, PAGELIST_T ** ppagelist);
++		PAGELIST_T ** ppagelist);
+ 
+ static void
+ free_pagelist(PAGELIST_T *pagelist, int actual);
+@@ -243,7 +243,6 @@ vchiq_prepare_bulk_data(VCHIQ_BULK_T *bulk, VCHI_MEM_HANDLE_T memhandle,
+ 			(dir == VCHIQ_BULK_RECEIVE)
+ 			? PAGELIST_READ
+ 			: PAGELIST_WRITE,
+-			current,
+ 			&pagelist);
+ 	if (ret != 0)
+ 		return VCHIQ_ERROR;
+@@ -365,7 +364,7 @@ vchiq_doorbell_irq(int irq, void *dev_id)
+ 
+ static int
+ create_pagelist(char __user *buf, size_t count, unsigned short type,
+-	struct task_struct *task, PAGELIST_T ** ppagelist)
++	PAGELIST_T ** ppagelist)
+ {
+ 	PAGELIST_T *pagelist;
+ 	struct page **pages;
+@@ -419,15 +418,15 @@ create_pagelist(char __user *buf, size_t count, unsigned short type,
+ 		}
+ 		*need_release = 0; /* do not try and release vmalloc pages */
+ 	} else {
+-		down_read(&task->mm->mmap_sem);
+-		actual_pages = get_user_pages(task, task->mm,
+-				          (unsigned long)buf & ~(PAGE_SIZE - 1),
++		down_read(&current->mm->mmap_sem);
++		actual_pages = get_user_pages(
++					  (unsigned long)buf & ~(PAGE_SIZE - 1),
+ 					  num_pages,
+ 					  (type == PAGELIST_READ) /*Write */ ,
+ 					  0 /*Force */ ,
+ 					  pages,
+ 					  NULL /*vmas */);
+-		up_read(&task->mm->mmap_sem);
++		up_read(&current->mm->mmap_sem);
+ 
+ 		if (actual_pages != num_pages) {
+ 			vchiq_log_info(vchiq_arm_log_level,
+@@ -439,7 +438,7 @@ create_pagelist(char __user *buf, size_t count, unsigned short type,
+ 			while (actual_pages > 0)
+ 			{
+ 				actual_pages--;
+-				page_cache_release(pages[actual_pages]);
++				put_page(pages[actual_pages]);
+ 			}
+ 			kfree(pagelist);
+ 			if (actual_pages == 0)
+@@ -578,7 +577,7 @@ free_pagelist(PAGELIST_T *pagelist, int actual)
+ 				offset = 0;
+ 				set_page_dirty(pg);
+ 			}
+-			page_cache_release(pg);
++			put_page(pg);
+ 		}
+ 	}
+ 
+diff --git a/drivers/misc/vc04_services/interface/vchiq_arm/vchiq_arm.c b/drivers/misc/vc04_services/interface/vchiq_arm/vchiq_arm.c
+index a5cc385..a76060c 100644
+--- a/drivers/misc/vc04_services/interface/vchiq_arm/vchiq_arm.c
++++ b/drivers/misc/vc04_services/interface/vchiq_arm/vchiq_arm.c
+@@ -1480,8 +1480,7 @@ dump_phys_mem(void *virt_addr, uint32_t num_bytes)
+ 	}
+ 
+ 	down_read(&current->mm->mmap_sem);
+-	rc = get_user_pages(current,      /* task */
+-		current->mm,              /* mm */
++	rc = get_user_pages(
+ 		(unsigned long)virt_addr, /* start */
+ 		num_pages,                /* len */
+ 		0,                        /* write */
+@@ -1520,7 +1519,7 @@ dump_phys_mem(void *virt_addr, uint32_t num_bytes)
+ 		kunmap(page);
+ 
+ 	for (page_idx = 0; page_idx < num_pages; page_idx++)
+-		page_cache_release(pages[page_idx]);
++		put_page(pages[page_idx]);
+ 
+ 	kfree(pages);
+ }
+-- 
+2.8.0.rc3
+

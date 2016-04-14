@@ -1,0 +1,8 @@
+#! /bin/sh
+
+set -e
+
+version="$1"
+
+echo current_initrd=initrd.img-${version} > /boot/uboot_kernel.txt
+echo current_kernel=vmlinuz-${version} >> /boot/uboot_kernel.txt
