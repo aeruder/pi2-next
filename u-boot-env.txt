@@ -5,6 +5,7 @@ bootcmd=\
  setenv cmd_load.user "" ;\
  run cmd_loadcfg.user ;\
  run cmd_load.user ;\
+ run cmd_load.default_bootargs &&\
  run cmd_load.bootargs &&\
  run cmd_load.initrd &&\
  run cmd_load.kernel &&\
@@ -23,6 +24,9 @@ cmd_load.ramdisk=\
 cmd_load.kernel=\
  ext4load mmc 0:2 $kernel_addr_r $current_kernel &&\
  setenv kernel_size $filesize
+cmd_load.default_bootargs=\
+ fdt addr ${fdt_addr_r} &&\
+ fdt get value bootargs /chosen bootargs
 cmd_loadcfg=\
  ext4load mmc 0:2 $scriptaddr $cfg &&\
  env import -t $scriptaddr $filesize

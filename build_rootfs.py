@@ -159,10 +159,14 @@ class create_uboot_deb(object):
             OPJ(gbc.tmp, "u-boot-env-stripped.txt") ])
         ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.env"), 0o644)
 
-        with open(OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.hyp"), "wb") as f:
+        with open(OPJ(gbc.tmp, "uboot.hyp"), "wb") as f:
             ib.check_subprocess(s, [ 'cat', OPJ(gbc.hyp, "bootblk.bin"),
                                             OPJ(gbc.uboot, "u-boot.bin") ], stdout=f)
+
+        ib.check_subprocess(s, [ OPJ(gbc.linux, "scripts", "mkknlimg"), "--dtok",
+            OPJ(gbc.tmp, "uboot.hyp"), OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.hyp") ])
         ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.hyp"), 0o644)
+
         ib.check_subprocess(s, [ "dpkg-deb", "-b", gbc.uboot_deb_d, gbc.uboot_deb ])
 
 @ib.buildcmd()
@@ -200,7 +204,7 @@ with ib.builder() as s:
     clone_uboot(s, gbc)
 
     try:
-        compile_linux(s, gbc)
+        # compile_linux(s, gbc)
         compile_uboot(s, gbc)
         compile_hyp(s, gbc)
 
