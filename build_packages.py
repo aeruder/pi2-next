@@ -22,7 +22,6 @@ LINUX_UPSTREAM_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/lin
 LINUX_STABLE_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git"
 FIRMWARE_VER = "master"
 FIRMWARE_URL = "http://github.com/raspberrypi/firmware"
-DEBIAN_VER = "jessie"
 
 class GlobalBuildContext:
     pass
