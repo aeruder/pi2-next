@@ -116,13 +116,13 @@ class compile_linux(object):
     def run(self, s, gbc):
         ib.check_subprocess(s, ['cp', 'linux-config', OPJ(gbc.linux, '.config')])
         ib.check_subprocess(s, ['make', '-C', gbc.linux, 'oldconfig'], stdin=subprocess.DEVNULL)
-        ib.check_subprocess(s, ['make', '-j8', '-C', gbc.linux, 'deb-pkg'])
+        ib.check_subprocess(s, ['make', '-j3', '-C', gbc.linux, 'deb-pkg'])
 
 @ib.buildcmd()
 class compile_uboot(object):
     def run(self, s, gbc):
         ib.check_subprocess(s, ['make', '-C', gbc.uboot, 'rpi_2_defconfig'])
-        ib.check_subprocess(s, ['make', '-j8', '-C', gbc.uboot])
+        ib.check_subprocess(s, ['make', '-j3', '-C', gbc.uboot])
 
 @ib.buildcmd()
 class compile_hyp(object):
@@ -186,6 +186,8 @@ class create_firmware_deb(object):
         ib.file.install_dir(s, OPJ(gbc.firmware_deb_d, "boot"), 0, 0, 0o755)
         ib.file.copy_r(s, OPJ(gbc.firmware, "boot"),
                 OPJ(gbc.firmware_deb_d, "boot", "firmware"))
+        ib.file.rm(s, OPJ(gbc.firmware_deb_d, "boot", "firmware", "kernel.img"))
+        ib.file.rm(s, OPJ(gbc.firmware_deb_d, "boot", "firmware", "kernel7.img"))
         ib.check_subprocess(s, [ 'chmod', '-R', 'u=rwX,g=rX,o=rX',
             OPJ(gbc.firmware_deb_d, "boot", "firmware") ])
 

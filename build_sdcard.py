@@ -29,7 +29,147 @@ class setup_gbc(object):
             os.mkdir(self.gbc.repo)
 
 @ib.buildcmd()
-class 
+class download_repo(object):
+    def run(self, s, gbc):
+        gbc.debian = OPJ(gbc.tmp, DEBIAN_VER)
+        debiantar = None
+        for a in glob.glob(OPJ(gbc.repo, "{0}-bare-*.tar.gz".format(DEBIAN_VER))):
+            debiantar = a
+        if debiantar != None:
+            s.info("Found %s, skipping debootstrap" % debiantar)
+            with open(debiantar, "rb") as f:
+                ib.check_subprocess(s, [ 'tar', '-C', gbc.tmp, '-zxf', '-' ], stdin=f)
+        else:
+            ib.check_subprocess(s, [ 'debootstrap', DEBIAN_VER, gbc.debian ])
+            debiantar = "{0}-bare-{1}.tar.gz".format(DEBIAN_VER, gbc.today)
+            with open(OPJ(gbc.repo, debiantar), "wb") as f:
+                ib.check_subprocess(s, [ 'tar', '-C', gbc.tmp, '-zcf', '-', DEBIAN_VER ], stdout=f)
+
+@ib.buildcmd()
+class disable_services(object):
+    def run(self, s, root):
+        policyfile = OPJ(root, "usr", "sbin", "policy-rc.d")
+        with open(policyfile, "w") as f:
+            print(textwrap.dedent("""\
+                    #!/bin/sh
+                    exit 101"""), file=f)
+        ib.file.chmod(s, policyfile, 0o755)
+
+@ib.buildcmd()
+class enable_services(object):
+    def run(self, s, root):
+        policyfile = OPJ(root, "usr", "sbin", "policy-rc.d")
+        ib.file.rm(s, policyfile)
+
+@ib.buildcmd()
+@ib.buildcmd_flatten()
+class run_chroot(object):
+    def run(self, s, root, cmd, helper=ib.check_subprocess, *args, **kwargs):
+        cmd = [ "chroot", root ] + cmd
+        helper(s, cmd, *args, **kwargs)
+
+@ib.buildcmd()
+@ib.buildcmd_flatten()
+class apt_get(object):
+    def run(self, s, root, args):
+        run_chroot(s, root, [ 'apt-get' ] + args)
+
+@ib.buildcmd()
+@ib.buildcmd_flatten()
+class install_deb(object):
+    def run(self, s, root, pkg):
+        ib.file.copyfile(s, pkg, OPJ(root, "install.deb"))
+        run_chroot(s, root, [ 'dpkg', '-i', '/install.deb' ])
+        ib.file.rm(s, OPJ(root, "install.deb"))
+
+@ib.buildcmd()
+@ib.buildcmd_flatten()
+class overlay(object):
+    def run(self, s, root, path, uid, gid, perm):
+        from_path = "overlay" + path
+        to_path = root + path
+        ib.file.install(s, from_path, to_path, uid, gid, perm)
+
+@ib.buildcmd()
+class create_image(object):
+    def run(self, s, gbc):
+        gbc.img = OPJ(gbc.tmp, "img.bin")
+        ib.check_subprocess(s, [ 'dd', 'if=/dev/zero', 'of=%s' % gbc.img, 'bs=1048576', 'count=800' ])
+        gbc.dev = ib.loopback.init(s, gbc.img, partscan=True).device
+
+@ib.buildcmd()
+class create_partitions(object):
+    def run(self, s, gbc):
+        with open(OPJ(gbc.tmp, "sfdisk.scr"), "w") as f:
+            print(textwrap.dedent("""\
+                label: dos
+                unit: sectors
+
+                start=2048, size=49152, type=e
+                start=51200, size=153600, type=83
+                start=204800, type=83"""), file=f)
+        with open(OPJ(gbc.tmp, "sfdisk.scr"), "r") as f:
+            ib.check_subprocess(s, [ 'sfdisk', gbc.dev ], stdin=f)
+        gbc.fwdev = gbc.dev + "p1"
+        gbc.bootdev = gbc.dev + "p2"
+        gbc.rootdev = gbc.dev + "p3"
+
+@ib.buildcmd()
+class format_partitions(object):
+    def run(self, s, gbc):
+        ib.check_subprocess(s, [ 'mkfs.fat', '-F', '16', gbc.fwdev ])
+        ib.check_subprocess(s, [ 'mkfs.ext4', gbc.bootdev ])
+        ib.check_subprocess(s, [ 'mkfs.btrfs', gbc.rootdev ])
+
+@ib.buildcmd()
+class mount_partitions(object):
+    def run(self, s, gbc):
+        gbc.mnt = OPJ(gbc.tmp, "mnt")
+        ib.file.mkdir(s, gbc.mnt)
+        with ib.builder() as s1:
+            ib.mount(s1, 'btrfs', gbc.rootdev, gbc.mnt, "rw,relatime,compress=lzo,space_cache")
+            ib.check_subprocess(s1, [ 'btrfs', 'subvolume', 'create', OPJ(gbc.mnt, 'rootfs') ])
+            ib.check_subprocess(s1, [ 'btrfs', 'subvolume', 'create', OPJ(gbc.mnt, 'home') ])
+        ib.mount(s, 'btrfs', gbc.rootdev, gbc.mnt, 'rw,relatime,compress=lzo,space_cache,subvol=rootfs')
+        ib.file.mkdir(s, OPJ(gbc.mnt, "boot"))
+        ib.file.mkdir(s, OPJ(gbc.mnt, "home"))
+        ib.mount(s, 'btrfs', gbc.rootdev, OPJ(gbc.mnt, "home"), 'rw,relatime,compress=lzo,space_cache,subvol=home')
+        ib.mount(s, 'ext4', gbc.bootdev, OPJ(gbc.mnt, 'boot'), 'rw,relatime')
+        ib.file.mkdir(s, OPJ(gbc.mnt, "boot", "firmware"))
+        ib.mount(s, 'vfat', gbc.fwdev, OPJ(gbc.mnt, 'boot', 'firmware'))
+
+@ib.buildcmd()
+class install_packages(self, s, gbc):
+    for a in glob.glob(OPJ("packages", "*.deb")):
+        install_deb(s, gbc.debian, a)
 
 with ib.builder() as s:
+    ib.check_root(s)
     gbc = setup_gbc(s).gbc
+    download_repo(s, gbc)
+    disable_services(s, gbc.debian)
+    apt_get(s, gbc.debian, ['update'])
+    apt_get(s, gbc.debian, ['-y', 'install', 'openssh-client', 'openssh-server'])
+    apt_get(s, gbc.debian, ['-y', 'install', 'btrfs-tools'])
+    install_packages(s, gbc)
+    run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-networkd.service' ])
+    run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-resolved.service' ])
+
+    overlay(s, gbc.debian, "/etc/systemd/network/eth0.network", 0, 0, 0o644)
+    overlay(s, gbc.debian, "/etc/resolv.conf", 0, 0, 0o644)
+    overlay(s, gbc.debian, "/etc/fstab", 0, 0, 0o644)
+    overlay(s, gbc.debian, "/etc/hostname", 0, 0, 0o644)
+    overlay(s, gbc.debian, "/boot/uboot_root.txt", 0, 0, 0o644)
+
+    apt_get(s, gbc.debian, ['clean'])
+    enable_services(s, gbc.debian)
+
+    with ib.builder() as s1:
+        try:
+            create_image(s1, gbc)
+            create_partitions(s1, gbc)
+            format_partitions(s1, gbc)
+            mount_partitions(s1, gbc)
+            ib.check_subprocess(s1, [ 'rsync', '-avr', gbc.debian + "/", gbc.mnt ])
+        finally:
+            ib.subprocess(s, [ 'zsh' ])

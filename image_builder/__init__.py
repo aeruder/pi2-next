@@ -67,6 +67,7 @@ class buildcmd_once(object):
         return buildcmd_once_wrapper
 
 import image_builder.file
+import image_builder.loopback
 
 @buildcmd()
 @buildcmd_flatten()
@@ -233,26 +234,30 @@ class mount_image(object):
             raise possible_error
 
 class builder(object):
+    logger_init = False
+
     def __init__(self):
         self.buildcmd_count = {}
         self.buildcmd_stack = []
         self.exit_callbacks = []
         self.logger = logging.getLogger('image_builder')
-        ch = logging.StreamHandler()
-        ch.setFormatter(colorlog.ColoredFormatter(
-            "%(log_color)s%(levelname)-8s%(reset)s %(message)s",
-            datefmt=None,
-            reset=True,
-            log_colors={
-                'DEBUG':    'cyan',
-                'INFO':     'green',
-                'WARNING':  'yellow',
-                'ERROR':    'red',
-                'CRITICAL': 'red,bg_white',
-            },
-            style='%'))
-        self.logger.addHandler(ch)
-        self.logger.setLevel(logging.DEBUG)
+        if not builder.logger_init:
+            ch = logging.StreamHandler()
+            ch.setFormatter(colorlog.ColoredFormatter(
+                "%(log_color)s%(levelname)-8s%(reset)s %(message)s",
+                datefmt=None,
+                reset=True,
+                log_colors={
+                    'DEBUG':    'cyan',
+                    'INFO':     'green',
+                    'WARNING':  'yellow',
+                    'ERROR':    'red',
+                    'CRITICAL': 'red,bg_white',
+                },
+                style='%'))
+            self.logger.addHandler(ch)
+            self.logger.setLevel(logging.DEBUG)
+            builder.logger_init = True
         self.in_exit = True
 
     def __enter__(self):
