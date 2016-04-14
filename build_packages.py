@@ -8,6 +8,7 @@ import subprocess
 import textwrap
 import datetime
 import shutil
+import glob
 
 OPJ = os.path.join
 
@@ -62,6 +63,15 @@ class setup_gbc(object):
             os.mkdir(self.gbc.repo)
 
 @ib.buildcmd()
+class create_worktree(object):
+    def run(self, s, from_repo, to_repo, head):
+        self.from_repo = from_repo
+        check_git_run(s, from_repo, [ 'worktree', 'add', '--detach',
+                to_repo, head ])
+    def cleanup(self, s):
+        git_run(s, self.from_repo, [ 'worktree', 'prune', '-v', '--expire', 'now' ])
+
+@ib.buildcmd()
 class clone_linux(object):
     def run(self, s, gbc):
         gbc.linux_git = OPJ(gbc.repo, "linux.git")
@@ -69,8 +79,7 @@ class clone_linux(object):
         fetch_git_url(s, gbc.linux_git, "origin", LINUX_URL)
         fetch_git_url(s, gbc.linux_git, "upstream", LINUX_UPSTREAM_URL)
         fetch_git_url(s, gbc.linux_git, "stable", LINUX_STABLE_URL)
-        check_git_run(s, gbc.linux_git, [ 'worktree', 'add', '--detach',
-                gbc.linux, LINUX_VER ])
+        create_worktree(s, gbc.linux_git, gbc.linux, LINUX_VER)
         check_git_run(s, gbc.linux, [ 'am', OPJ(os.getcwd(),
                 'patches',
                 '0001-Fix-deprecated-get_user_pages-page_cache_release.patch') ])
@@ -81,8 +90,7 @@ class clone_hyp(object):
         gbc.hyp_git = OPJ(gbc.repo, "hyp.git")
         gbc.hyp = OPJ(gbc.tmp, "hyp")
         fetch_git_url(s, gbc.hyp_git, "origin", HYP_URL)
-        check_git_run(s, gbc.hyp_git, [ 'worktree', 'add', '--detach',
-                gbc.hyp, HYP_VER ])
+        create_worktree(s, gbc.hyp_git, gbc.hyp, HYP_VER)
 
 @ib.buildcmd()
 class clone_firmware(object):
@@ -92,8 +100,7 @@ class clone_firmware(object):
         gbc.firmware_deb_d = OPJ(gbc.tmp, 'firmware-deb')
         gbc.firmware_deb = OPJ(gbc.tmp, "raspberrypi-firmware-git-{0}-1_armhf.deb".format(gbc.today))
         fetch_git_url(s, gbc.firmware_git, "origin", FIRMWARE_URL)
-        check_git_run(s, gbc.firmware_git, [ 'worktree', 'add', '--detach',
-                gbc.firmware, FIRMWARE_VER ])
+        create_worktree(s, gbc.firmware_git, gbc.firmware, FIRMWARE_VER)
 
 @ib.buildcmd()
 class clone_uboot(object):
@@ -103,8 +110,7 @@ class clone_uboot(object):
         gbc.uboot_deb_d = OPJ(gbc.tmp, 'u-boot-deb')
         gbc.uboot_deb = OPJ(gbc.tmp, "u-boot-git-{0}-1_armhf.deb".format(gbc.today))
         fetch_git_url(s, gbc.uboot_git, "origin", UBOOT_URL)
-        check_git_run(s, gbc.uboot_git, [ 'worktree', 'add', '--detach',
-                gbc.uboot, UBOOT_VER ])
+        create_worktree(s, gbc.uboot_git, gbc.uboot, UBOOT_VER)
 
 @ib.buildcmd()
 class compile_linux(object):
@@ -224,7 +230,7 @@ class run_with_root(object):
         if launch_sub:
             with open(out_file, "wb") as f:
                 pickle.dump(gbc, f, protocol=pickle.HIGHEST_PROTOCOL)
-            ib.check_subprocess(s, [ sys.argv[0], "resume", sub_type, out_file, command.__name__ ])
+            ib.check_subprocess(s, [ sub_type, sys.argv[0], "resume", sub_type, out_file, command.__name__ ])
             with open(out_file, "rb") as f:
                 gbc = pickle.load(f)
 
@@ -263,6 +269,14 @@ class resume(object):
                     pickle.dump(gbc, f, protocol=pickle.HIGHEST_PROTOCOL)
             self.resumed = True
 
+@ib.buildcmd()
+class move_packages(object):
+    def run(self, s, gbc):
+        for a in glob.glob(OPJ('packages', '*.deb')):
+            ib.file.rm(s, a)
+        for a in glob.glob(OPJ(gbc.tmp, '*.deb')):
+            ib.file.copy(s, a, 'packages')
+
 with ib.builder() as s:
     if not resume(s).resumed:
         gbc = setup_gbc(s).gbc
@@ -272,14 +286,15 @@ with ib.builder() as s:
         clone_firmware(s, gbc)
         clone_uboot(s, gbc)
 
-        try:
-            # compile_linux(s, gbc)
+#        try:
+        if True:
+            compile_linux(s, gbc)
             compile_uboot(s, gbc)
             compile_hyp(s, gbc)
 
             run_with_fakeroot(s, gbc, create_uboot_deb)
             run_with_fakeroot(s, gbc, create_firmware_deb)
 
-            # create_debian(s, gbc)
-        finally:
-            ib.subprocess(s, ['zsh'])
+            move_packages(s, gbc)
+#        except:
+#            ib.subprocess(s, ['zsh'])

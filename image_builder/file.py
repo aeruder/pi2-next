@@ -68,6 +68,30 @@ class chown(object):
         os.chown(to_path, uid, gid, follow_symlinks=False)
 
 @ib.buildcmd()
+@ib.buildcmd_name("file.mkdir")
+@ib.buildcmd_flatten()
+class mkdir(object):
+    def run(self, s, path):
+        s.debug("Creating directory %s", path)
+        os.mkdir(path)
+
+@ib.buildcmd()
+@ib.buildcmd_name("file.copyfile")
+@ib.buildcmd_flatten()
+class copyfile(object):
+    def run(self, s, from_path, to_path):
+        s.debug("Copying %s to %s", from_path, to_path)
+        shutil.copyfile(from_path, to_path)
+
+@ib.buildcmd()
+@ib.buildcmd_name("file.copy")
+@ib.buildcmd_flatten()
+class copy(object):
+    def run(self, s, from_path, to_path):
+        s.debug("Copying %s to %s", from_path, to_path)
+        shutil.copy(from_path, to_path)
+
+@ib.buildcmd()
 @ib.buildcmd_name("file.copy_r")
 @ib.buildcmd_flatten()
 class copy_r(object):
