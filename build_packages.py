@@ -297,13 +297,17 @@ with ib.builder() as s:
     if not resume(s).resumed:
         gbc = setup_gbc(s).gbc
 
-        if len(glob.glob(OPJ('packages', 'u-boot-git-*.deb'))) == 0:
-            create_uboot_deb(s, gbc)
-        if len(glob.glob(OPJ('packages', 'raspberrypi-firmware-git-*.deb'))) == 0:
-            create_firmware_deb(s, gbc)
-        if len(glob.glob(OPJ('packages', 'linux-*.deb'))) != 4:
-            for a in glob.glob(OPJ('packages', 'linux-*.deb')):
-                ib.file.rm(s, a)
-            create_linux_deb(s, gbc)
+        try:
+            if len(glob.glob(OPJ('packages', 'u-boot-git-*.deb'))) == 0:
+                create_uboot_deb(s, gbc)
+            if len(glob.glob(OPJ('packages', 'raspberrypi-firmware-git-*.deb'))) == 0:
+                create_firmware_deb(s, gbc)
+            if len(glob.glob(OPJ('packages', 'linux-*.deb'))) != 4:
+                for a in glob.glob(OPJ('packages', 'linux-*.deb')):
+                    ib.file.rm(s, a)
+                create_linux_deb(s, gbc)
 
-        move_packages(s, gbc)
+            move_packages(s, gbc)
+        finally:
+            if os.getenv('INTERACTIVE', '0') == '1':
+                ib.subprocess(s, [ 'bash' ])
