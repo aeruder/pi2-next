@@ -157,6 +157,15 @@ class remove_keys(object):
         for a in glob.glob(OPJ(gbc.debian, "etc", "ssh", "ssh_host_*")):
             ib.file.rm(s, a)
 
+@ib.buildcmd()
+class setpassword(object):
+    def run(self, s, gbc, user, password):
+        with open(OPJ(gbc.tmp, "pass"), "w") as f:
+            print(textwrap.dedent("""\
+                    root:pi2-next"""), file=f)
+        with open(OPJ(gbc.tmp, "pass"), "r") as f:
+            run_chroot(s, gbc.debian, [ 'chpasswd' ], stdin=f)
+
 with ib.builder() as s:
     ib.check_root(s)
     gbc = setup_gbc(s).gbc
@@ -186,4 +195,3 @@ with ib.builder() as s:
         mount_partitions(s1, gbc)
         ib.check_subprocess(s1, [ 'rsync', '-avr', gbc.debian + "/", gbc.mnt ])
     move_image(s, gbc)
-
