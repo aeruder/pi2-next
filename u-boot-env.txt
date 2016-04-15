@@ -7,7 +7,7 @@ bootcmd=\
  run cmd_load.user ;\
  run cmd_load.default_bootargs &&\
  run cmd_load.bootargs &&\
- run cmd_load.initrd &&\
+ run cmd_load.ramdisk &&\
  run cmd_load.kernel &&\
  bootz $kernel_addr_r $ramdisk_addr_r:$ramdisk_size $fdt_addr_r
 bootdelay=2
