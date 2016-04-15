@@ -141,7 +141,11 @@ class mount_partitions(object):
 @ib.buildcmd()
 class install_packages(object):
     def run(self, s, gbc):
-        for a in glob.glob(OPJ("packages", "*.deb")):
+        for a in glob.glob(OPJ("packages", "raspberrypi-firmware-git-*.deb")):
+            install_deb(s, gbc.debian, a)
+        for a in glob.glob(OPJ("packages", "u-boot-git-*.deb")):
+            install_deb(s, gbc.debian, a)
+        for a in glob.glob(OPJ("packages", "linux-*.deb")):
             install_deb(s, gbc.debian, a)
 
 @ib.buildcmd()
@@ -172,8 +176,7 @@ with ib.builder() as s:
     download_repo(s, gbc)
     disable_services(s, gbc.debian)
     apt_get(s, gbc.debian, ['update'])
-    apt_get(s, gbc.debian, ['-y', 'install', 'openssh-client', 'openssh-server'])
-    apt_get(s, gbc.debian, ['-y', 'install', 'btrfs-tools'])
+    apt_get(s, gbc.debian, ['-y', 'install', 'openssh-client', 'openssh-server', 'initramfs-tools', 'btrfs-tools'])
     install_packages(s, gbc)
     remove_keys(s, gbc)
     run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-networkd.service' ])
