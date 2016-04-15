@@ -42,5 +42,4 @@
 #uncomment to overclock the arm. 700 MHz is the default.
 #arm_freq=800
 
-kernel=uboot.hyp
-kernel_old=1
+kernel=uboot.bin

@@ -14,8 +14,6 @@ OPJ = os.path.join
 
 UBOOT_VER = "v2016.03"
 UBOOT_URL = 'git://git.denx.de/u-boot.git'
-HYP_VER = "master"
-HYP_URL = "https://github.com/slp/rpi2-hyp-boot"
 LINUX_VER = "rpi-4.6.y"
 LINUX_URL = "https://github.com/raspberrypi/linux"
 LINUX_UPSTREAM_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
@@ -83,14 +81,6 @@ class clone_linux(object):
                 '0001-Fix-deprecated-get_user_pages-page_cache_release.patch') ])
 
 @ib.buildcmd()
-class clone_hyp(object):
-    def run(self, s, gbc):
-        gbc.hyp_git = OPJ(gbc.repo, "hyp.git")
-        gbc.hyp = OPJ(gbc.tmp, "hyp")
-        fetch_git_url(s, gbc.hyp_git, "origin", HYP_URL)
-        create_worktree(s, gbc.hyp_git, gbc.hyp, HYP_VER)
-
-@ib.buildcmd()
 class clone_firmware(object):
     def run(self, s, gbc):
         gbc.firmware_git = OPJ(gbc.repo, "firmware.git")
@@ -124,11 +114,6 @@ class compile_uboot(object):
         ib.check_subprocess(s, ['make', '-j3', '-C', gbc.uboot])
 
 @ib.buildcmd()
-class compile_hyp(object):
-    def run(self, s, gbc):
-        ib.check_subprocess(s, ['make', '-C', gbc.hyp])
-
-@ib.buildcmd()
 class create_uboot_deb(object):
     def run(self, s, gbc):
         ib.file.install_dir(s, gbc.uboot_deb_d, 0, 0, 0o755)
@@ -155,7 +140,7 @@ class create_uboot_deb(object):
                     Priority: optional
                     Architecture: armhf
                     Maintainer: Andrew Ruder <andy@aeruder.net>
-                    Description: U-Boot for raspberry pi 2 + 3 with HYP
+                    Description: U-Boot for raspberry pi 2 + 3
                       This is a debian package generated from the u-boot git repository""").format(gbc.today),
                     file=f)
         ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "DEBIAN", "control"), 0o644)
@@ -168,13 +153,9 @@ class create_uboot_deb(object):
             OPJ(gbc.tmp, "u-boot-env-stripped.txt") ])
         ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.env"), 0o644)
 
-        with open(OPJ(gbc.tmp, "uboot.hyp"), "wb") as f:
-            ib.check_subprocess(s, [ 'cat', OPJ(gbc.hyp, "bootblk.bin"),
-                                            OPJ(gbc.uboot, "u-boot.bin") ], stdout=f)
-
         ib.check_subprocess(s, [ OPJ(gbc.linux, "scripts", "mkknlimg"), "--dtok",
-            OPJ(gbc.tmp, "uboot.hyp"), OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.hyp") ])
-        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.hyp"), 0o644)
+            OPJ(gbc.uboot, "u-boot.bin"), OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.bin") ])
+        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.bin"), 0o644)
 
         ib.check_subprocess(s, [ "dpkg-deb", "-b", gbc.uboot_deb_d, gbc.uboot_deb ])
 
@@ -282,19 +263,13 @@ with ib.builder() as s:
         gbc = setup_gbc(s).gbc
 
         clone_linux(s, gbc)
-        clone_hyp(s, gbc)
         clone_firmware(s, gbc)
         clone_uboot(s, gbc)
 
-#        try:
-        if True:
-            compile_linux(s, gbc)
-            compile_uboot(s, gbc)
-            compile_hyp(s, gbc)
+        compile_linux(s, gbc)
+        compile_uboot(s, gbc)
 
-            run_with_fakeroot(s, gbc, create_uboot_deb)
-            run_with_fakeroot(s, gbc, create_firmware_deb)
+        run_with_fakeroot(s, gbc, create_uboot_deb)
+        run_with_fakeroot(s, gbc, create_firmware_deb)
 
-            move_packages(s, gbc)
-#        except:
-#            ib.subprocess(s, ['zsh'])
+        move_packages(s, gbc)
