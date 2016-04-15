@@ -13,10 +13,10 @@ bootcmd=\
 bootdelay=2
 fdt_high=ffffffff
 initrd_high=ffffffff
-fdt_addr_r=0x00000100
 pxefile_addr_r=0x00100000
 kernel_addr_r=0x01000000
-scriptaddr=0x02000000
+fdt_addr_r=0x02000000
+scriptaddr=0x02080000
 ramdisk_addr_r=0x02100000
 cmd_load.ramdisk=\
  ext4load mmc 0:2 $ramdisk_addr_r $current_initrd &&\
