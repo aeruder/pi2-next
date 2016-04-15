@@ -1,12 +1,14 @@
 baudrate=115200
 bootcmd=\
+ setenv cmd_load.user.early "" ;\
+ setenv cmd_load.user.late "" ;\
  run cmd_loadcfg.kernel ;\
- run cmd_loadcfg.root ;\
- setenv cmd_load.user "" ;\
+ run cmd_loadcfg.params ;\
  run cmd_loadcfg.user ;\
- run cmd_load.user ;\
+ run cmd_load.user.early ;\
  run cmd_load.default_bootargs &&\
- run cmd_load.bootargs &&\
+ run cmd_load.params ;\
+ run cmd_load.user.late ;\
  run cmd_load.ramdisk &&\
  run cmd_load.kernel &&\
  bootz $kernel_addr_r $ramdisk_addr_r:$ramdisk_size $fdt_addr_r
@@ -33,11 +35,11 @@ cmd_loadcfg=\
 cmd_loadcfg.kernel=\
  setenv cfg "uboot_kernel.txt";\
  run cmd_loadcfg
-cmd_loadcfg.root=\
- setenv cfg "uboot_root.txt";\
+cmd_loadcfg.params=\
+ setenv cfg "uboot_params.txt";\
  run cmd_loadcfg
 cmd_loadcfg.user=\
- setenv cfg "uboot_custom.txt";\
+ setenv cfg "uboot_user.txt";\
  run cmd_loadcfg
 ethact=sms0
 stdin=serial,usbkbd

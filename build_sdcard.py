@@ -164,7 +164,7 @@ class setpassword(object):
             print(textwrap.dedent("""\
                     root:pi2-next"""), file=f)
         with open(OPJ(gbc.tmp, "pass"), "r") as f:
-            run_chroot(s, gbc.debian, [ 'chpasswd' ], stdin=f)
+            run_chroot(s, gbc.debian, [ 'chpasswd', '-c', 'SHA512' ], stdin=f)
 
 with ib.builder() as s:
     ib.check_root(s)
@@ -183,8 +183,7 @@ with ib.builder() as s:
     overlay(s, gbc.debian, "/etc/resolv.conf", 0, 0, 0o644)
     overlay(s, gbc.debian, "/etc/fstab", 0, 0, 0o644)
     overlay(s, gbc.debian, "/etc/hostname", 0, 0, 0o644)
-    overlay(s, gbc.debian, "/boot/uboot_root.txt", 0, 0, 0o644)
-    overlay(s, gbc.debian, "/boot/uboot_custom.txt", 0, 0, 0o644)
+    overlay(s, gbc.debian, "/boot/uboot_params.txt", 0, 0, 0o644)
 
     apt_get(s, gbc.debian, ['clean'])
     enable_services(s, gbc.debian)

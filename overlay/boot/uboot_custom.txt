@@ -1,1 +1,0 @@
-cmd_load.user=setenv bootargs "${bootargs} console=ttyAMA0,115200 console=tty1"

@@ -1,1 +1,0 @@
-cmd_load.bootargs=setenv bootargs "${bootargs} ro root=/dev/mmcblk0p3 rootwait rootflags=subvol=rootfs"

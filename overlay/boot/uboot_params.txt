@@ -1,0 +1,3 @@
+rootfs_settings=ro root=/dev/mmcblk0p3 rootwait rootflags=subvol=rootfs
+console_settings=console=tty1 console=ttyAMA0,115200
+cmd_load.params=setenv bootargs "${bootargs} ${console_settings} ${rootfs_settings}"
