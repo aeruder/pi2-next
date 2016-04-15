@@ -12,7 +12,7 @@ import glob
 
 OPJ = os.path.join
 
-UBOOT_VER = "v2016.03"
+UBOOT_VER = "v2016.05-rc1"
 UBOOT_URL = 'git://git.denx.de/u-boot.git'
 LINUX_VER = "rpi-4.6.y"
 LINUX_URL = "https://github.com/raspberrypi/linux"
