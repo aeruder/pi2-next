@@ -43,3 +43,6 @@
 #arm_freq=800
 
 kernel=uboot.bin
+device_tree_addr=0x02000000
+device_tree_end=0x02080000
+gpu_mem=128
