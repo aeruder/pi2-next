@@ -153,7 +153,7 @@ class create_uboot_deb(object):
             OPJ(gbc.tmp, "u-boot-env-stripped.txt") ])
         ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.env"), 0o644)
 
-        ib.check_subprocess(s, [ OPJ(gbc.linux, "scripts", "mkknlimg"), "--dtok",
+        ib.check_subprocess(s, [ OPJ(gbc.linux, "scripts", "mkknlimg"), "--dtok", "--270x",
             OPJ(gbc.uboot, "u-boot.bin"), OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.bin") ])
         ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.bin"), 0o644)
 
