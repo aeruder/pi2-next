@@ -143,6 +143,12 @@ class install_packages(self, s, gbc):
     for a in glob.glob(OPJ("packages", "*.deb")):
         install_deb(s, gbc.debian, a)
 
+@ib.buildcmd()
+class move_image(self, s, gbc):
+    with open("rpi2-next-%s.img.gz" % gbc.today, "wb") as f1:
+        with open(gbc.img, "rb") as f2:
+            ib.check_subprocess(s, [ "gzip", "-d" ], stdin=f2, stdout=f1)
+
 with ib.builder() as s:
     ib.check_root(s)
     gbc = setup_gbc(s).gbc
@@ -165,11 +171,10 @@ with ib.builder() as s:
     enable_services(s, gbc.debian)
 
     with ib.builder() as s1:
-        try:
-            create_image(s1, gbc)
-            create_partitions(s1, gbc)
-            format_partitions(s1, gbc)
-            mount_partitions(s1, gbc)
-            ib.check_subprocess(s1, [ 'rsync', '-avr', gbc.debian + "/", gbc.mnt ])
-        finally:
-            ib.subprocess(s, [ 'zsh' ])
+        create_image(s1, gbc)
+        create_partitions(s1, gbc)
+        format_partitions(s1, gbc)
+        mount_partitions(s1, gbc)
+        ib.check_subprocess(s1, [ 'rsync', '-avr', gbc.debian + "/", gbc.mnt ])
+    move_image(s, gbc)
+
