@@ -76,9 +76,6 @@ class clone_linux(object):
         fetch_git_url(s, gbc.linux_git, "upstream", LINUX_UPSTREAM_URL)
         fetch_git_url(s, gbc.linux_git, "stable", LINUX_STABLE_URL)
         create_worktree(s, gbc.linux_git, gbc.linux, LINUX_VER)
-        check_git_run(s, gbc.linux, [ 'am', OPJ(os.getcwd(),
-                'patches',
-                '0001-Fix-deprecated-get_user_pages-page_cache_release.patch') ])
 
 @ib.buildcmd()
 class clone_firmware(object):
