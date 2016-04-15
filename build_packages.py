@@ -123,9 +123,12 @@ class create_uboot_deb(object):
                 OPJ(gbc.uboot_deb_d, "etc", "kernel", "postinst.d", "zz-u-boot"), 0, 0, 0o755)
         ib.file.install(s, OPJ("u-boot-deb", "config.txt"),
                 OPJ(gbc.uboot_deb_d, "boot", "firmware", "config.txt"), 0, 0, 0o644)
+        ib.file.install(s, OPJ("u-boot-deb", "cmdline.txt"),
+                OPJ(gbc.uboot_deb_d, "boot", "firmware", "cmdline.txt"), 0, 0, 0o644)
         ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "DEBIAN"), 0, 0, 0o755)
         with open(OPJ(gbc.uboot_deb_d, "DEBIAN", "conffiles"), "w") as f:
             print(textwrap.dedent("""\
+                    /boot/firmware/cmdline.txt
                     /boot/firmware/config.txt
                     /boot/firmware/uboot.env"""), file=f)
         ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "DEBIAN", "conffiles"), 0o644)

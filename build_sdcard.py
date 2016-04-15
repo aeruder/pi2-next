@@ -184,6 +184,7 @@ with ib.builder() as s:
     overlay(s, gbc.debian, "/etc/fstab", 0, 0, 0o644)
     overlay(s, gbc.debian, "/etc/hostname", 0, 0, 0o644)
     overlay(s, gbc.debian, "/boot/uboot_root.txt", 0, 0, 0o644)
+    overlay(s, gbc.debian, "/boot/uboot_custom.txt", 0, 0, 0o644)
 
     apt_get(s, gbc.debian, ['clean'])
     enable_services(s, gbc.debian)
