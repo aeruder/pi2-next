@@ -139,15 +139,23 @@ class mount_partitions(object):
         ib.mount(s, 'vfat', gbc.fwdev, OPJ(gbc.mnt, 'boot', 'firmware'))
 
 @ib.buildcmd()
-class install_packages(self, s, gbc):
-    for a in glob.glob(OPJ("packages", "*.deb")):
-        install_deb(s, gbc.debian, a)
+class install_packages(object):
+    def run(self, s, gbc):
+        for a in glob.glob(OPJ("packages", "*.deb")):
+            install_deb(s, gbc.debian, a)
 
 @ib.buildcmd()
-class move_image(self, s, gbc):
-    with open("rpi2-next-%s.img.gz" % gbc.today, "wb") as f1:
-        with open(gbc.img, "rb") as f2:
-            ib.check_subprocess(s, [ "gzip", "-d" ], stdin=f2, stdout=f1)
+class move_image(object):
+    def run(self, s, gbc):
+        with open("rpi2-next-%s.img.gz" % gbc.today, "wb") as f1:
+            with open(gbc.img, "rb") as f2:
+                ib.check_subprocess(s, [ "gzip", "-c" ], stdin=f2, stdout=f1)
+
+@ib.buildcmd()
+class remove_keys(object):
+    def run(self, s, gbc):
+        for a in glob.glob(OPJ(gbc.debian, "etc", "ssh", "ssh_host_*")):
+            ib.file.rm(s, a)
 
 with ib.builder() as s:
     ib.check_root(s)
@@ -158,6 +166,7 @@ with ib.builder() as s:
     apt_get(s, gbc.debian, ['-y', 'install', 'openssh-client', 'openssh-server'])
     apt_get(s, gbc.debian, ['-y', 'install', 'btrfs-tools'])
     install_packages(s, gbc)
+    remove_keys(s, gbc)
     run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-networkd.service' ])
     run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-resolved.service' ])
 
