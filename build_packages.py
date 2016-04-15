@@ -43,9 +43,8 @@ class fetch_git_url(object):
     def run(self, s, repo, remote, url):
         if not os.path.isdir(repo):
             ib.check_subprocess(s, ['git', 'clone', '--bare', url, repo])
-        if git_run(s, repo, [ 'remote', 'get-url', remote ]).returncode != 0:
+        if git_run(s, repo, [ 'remote', 'set-url', remote, url ]).returncode != 0:
             check_git_run(s, repo, [ 'remote', 'add', remote, url ])
-        check_git_run(s, repo, [ 'remote', 'set-url', remote, url ])
         check_git_run(s, repo, [ 'fetch', remote ])
 
 @ib.buildcmd()
