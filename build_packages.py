@@ -14,11 +14,11 @@ OPJ = os.path.join
 
 UBOOT_VER = "v2016.05-rc1"
 UBOOT_URL = 'git://git.denx.de/u-boot.git'
-LINUX_VER = "rpi-4.6.y"
+LINUX_VER = "github/rpi-4.6.y"
 LINUX_URL = "https://github.com/raspberrypi/linux"
 LINUX_UPSTREAM_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
 LINUX_STABLE_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git"
-FIRMWARE_VER = "master"
+FIRMWARE_VER = "github/master"
 FIRMWARE_URL = "http://github.com/raspberrypi/firmware"
 
 class GlobalBuildContext:
@@ -73,7 +73,7 @@ class clone_linux(object):
     def run(self, s, gbc):
         gbc.linux_git = OPJ(gbc.repo, "linux.git")
         gbc.linux = OPJ(gbc.tmp, "linux")
-        fetch_git_url(s, gbc.linux_git, "origin", LINUX_URL)
+        fetch_git_url(s, gbc.linux_git, "github", LINUX_URL)
         fetch_git_url(s, gbc.linux_git, "upstream", LINUX_UPSTREAM_URL)
         fetch_git_url(s, gbc.linux_git, "stable", LINUX_STABLE_URL)
         create_worktree(s, gbc.linux_git, gbc.linux, LINUX_VER)
@@ -86,7 +86,7 @@ class clone_firmware(object):
         gbc.firmware = OPJ(gbc.tmp, "firmware")
         gbc.firmware_deb_d = OPJ(gbc.tmp, 'firmware-deb')
         gbc.firmware_deb = OPJ(gbc.tmp, "raspberrypi-firmware-git-{0}-1_armhf.deb".format(gbc.today))
-        fetch_git_url(s, gbc.firmware_git, "origin", FIRMWARE_URL)
+        fetch_git_url(s, gbc.firmware_git, "github", FIRMWARE_URL)
         create_worktree(s, gbc.firmware_git, gbc.firmware, FIRMWARE_VER)
 
 @ib.buildcmd()
@@ -97,7 +97,7 @@ class clone_uboot(object):
         gbc.uboot = OPJ(gbc.tmp, "u-boot")
         gbc.uboot_deb_d = OPJ(gbc.tmp, 'u-boot-deb')
         gbc.uboot_deb = OPJ(gbc.tmp, "u-boot-git-{0}-1_armhf.deb".format(gbc.today))
-        fetch_git_url(s, gbc.uboot_git, "origin", UBOOT_URL)
+        fetch_git_url(s, gbc.uboot_git, "upstream", UBOOT_URL)
         create_worktree(s, gbc.uboot_git, gbc.uboot, UBOOT_VER)
 
 @ib.buildcmd()
