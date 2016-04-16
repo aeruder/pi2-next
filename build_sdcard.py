@@ -162,7 +162,7 @@ class remove_keys(object):
             ib.file.rm(s, a)
 
 @ib.buildcmd()
-class setpassword(object):
+class set_password(object):
     def run(self, s, gbc, user, password):
         with open(OPJ(gbc.tmp, "pass"), "w") as f:
             print(textwrap.dedent("""\
