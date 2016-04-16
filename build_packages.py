@@ -62,17 +62,20 @@ class setup_gbc(object):
 class create_worktree(object):
     def run(self, s, from_repo, to_repo, head):
         self.from_repo = from_repo
-        check_git_run(s, from_repo, [ 'worktree', 'add', '--detach',
-                to_repo, head ])
-    def cleanup(self, s):
-        git_run(s, self.from_repo, [ 'worktree', 'prune', '-v', '--expire', 'now' ])
+        if os.path.isdir(to_repo):
+            check_git_run(s, to_repo, [ 'checkout', '-f', '--detach', head ])
+            check_git_run(s, to_repo, [ 'reset', '--hard' ])
+            check_git_run(s, to_repo, [ 'clean', '-x', '-d', '-f' ])
+        else:
+            check_git_run(s, from_repo, [ 'worktree', 'add', '--detach',
+                    os.path.abspath(to_repo), head ])
 
 @ib.buildcmd()
 @ib.buildcmd_once()
 class clone_linux(object):
     def run(self, s, gbc):
         gbc.linux_git = OPJ(gbc.repo, "linux.git")
-        gbc.linux = OPJ(gbc.tmp, "linux")
+        gbc.linux = OPJ(gbc.repo, "linux")
         fetch_git_url(s, gbc.linux_git, "github", LINUX_URL)
         fetch_git_url(s, gbc.linux_git, "upstream", LINUX_UPSTREAM_URL)
         fetch_git_url(s, gbc.linux_git, "stable", LINUX_STABLE_URL)
@@ -83,7 +86,7 @@ class clone_linux(object):
 class clone_firmware(object):
     def run(self, s, gbc):
         gbc.firmware_git = OPJ(gbc.repo, "firmware.git")
-        gbc.firmware = OPJ(gbc.tmp, "firmware")
+        gbc.firmware = OPJ(gbc.repo, "firmware")
         gbc.firmware_deb_d = OPJ(gbc.tmp, 'firmware-deb')
         gbc.firmware_deb = OPJ(gbc.tmp, "raspberrypi-firmware-git-{0}-1_armhf.deb".format(gbc.today))
         fetch_git_url(s, gbc.firmware_git, "github", FIRMWARE_URL)
@@ -94,7 +97,7 @@ class clone_firmware(object):
 class clone_uboot(object):
     def run(self, s, gbc):
         gbc.uboot_git = OPJ(gbc.repo, "u-boot.git")
-        gbc.uboot = OPJ(gbc.tmp, "u-boot")
+        gbc.uboot = OPJ(gbc.repo, "u-boot")
         gbc.uboot_deb_d = OPJ(gbc.tmp, 'u-boot-deb')
         gbc.uboot_deb = OPJ(gbc.tmp, "u-boot-git-{0}-1_armhf.deb".format(gbc.today))
         fetch_git_url(s, gbc.uboot_git, "upstream", UBOOT_URL)
