@@ -32,14 +32,14 @@ class setup_gbc(object):
 @ib.buildcmd()
 class download_repo(object):
     def run(self, s, gbc):
-        gbc.debian = OPJ(gbc.tmp, DEBIAN_VER)
+        gbc.debian = gbc.mnt
         debiantar = None
         for a in glob.glob(OPJ(gbc.repo, "{0}-bare-*.tar.gz".format(DEBIAN_VER))):
             debiantar = a
         if debiantar != None:
             s.info("Found %s, skipping debootstrap" % debiantar)
             with open(debiantar, "rb") as f:
-                ib.check_subprocess(s, [ 'tar', '-C', gbc.tmp, '-zxf', '-' ], stdin=f)
+                ib.check_subprocess(s, [ 'tar', '--strip-components=1', '-C', gbc.tmp, '-zxf', '-' ], stdin=f)
         else:
             ib.check_subprocess(s, [ 'debootstrap', DEBIAN_VER, gbc.debian, MIRROR ])
             debiantar = "{0}-bare-{1}.tar.gz".format(DEBIAN_VER, gbc.today)
@@ -125,7 +125,7 @@ class format_partitions(object):
 @ib.buildcmd()
 class mount_partitions(object):
     def run(self, s, gbc):
-        gbc.mnt = OPJ(gbc.tmp, "mnt")
+        gbc.mnt = OPJ(gbc.tmp, DEBIAN_VER)
         ib.file.mkdir(s, gbc.mnt)
         with ib.builder() as s1:
             ib.mount(s1, 'btrfs', gbc.rootdev, gbc.mnt, "rw,relatime,compress=lzo,space_cache")
@@ -179,34 +179,34 @@ class add_user(object):
 with ib.builder() as s:
     ib.check_root(s)
     gbc = setup_gbc(s).gbc
-    download_repo(s, gbc)
-    disable_services(s, gbc.debian)
-    apt_get(s, gbc.debian, ['update'])
-    apt_get(s, gbc.debian, ['-y', 'install', 'openssh-client', 'openssh-server', 'initramfs-tools', 'btrfs-tools'])
-    install_packages(s, gbc)
-    remove_keys(s, gbc)
-    run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-networkd.service' ])
-    run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-resolved.service' ])
-
-    overlay(s, gbc.debian, "/etc/cron.d/FIRST_BOOT_SSH", 0, 0, 0o644)
-    overlay(s, gbc.debian, "/etc/cron.d/FIRST_BOOT_PARTITION", 0, 0, 0o644)
-    overlay(s, gbc.debian, "/etc/systemd/network/eth0.network", 0, 0, 0o644)
-    overlay(s, gbc.debian, "/etc/resolv.conf", 0, 0, 0o644)
-    overlay(s, gbc.debian, "/etc/fstab", 0, 0, 0o644)
-    overlay(s, gbc.debian, "/etc/hostname", 0, 0, 0o644)
-    overlay(s, gbc.debian, "/boot/uboot_params.txt", 0, 0, 0o644)
-    set_password(s, gbc, "root", "pi2-next")
-
-    add_user(s, gbc, "pi2-next")
-    set_password(s, gbc, "pi2-next", "pi2-next")
-
-    apt_get(s, gbc.debian, ['clean'])
-    enable_services(s, gbc.debian)
 
     with ib.builder() as s1:
         create_image(s1, gbc)
         create_partitions(s1, gbc)
         format_partitions(s1, gbc)
         mount_partitions(s1, gbc)
-        ib.check_subprocess(s1, [ 'rsync', '-avr', gbc.debian + "/", gbc.mnt ])
+        download_repo(s, gbc)
+
+        disable_services(s, gbc.debian)
+        apt_get(s, gbc.debian, ['update'])
+        apt_get(s, gbc.debian, ['-y', 'install', 'openssh-client', 'openssh-server', 'initramfs-tools', 'btrfs-tools'])
+        install_packages(s, gbc)
+        remove_keys(s, gbc)
+        run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-networkd.service' ])
+        run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-resolved.service' ])
+
+        overlay(s, gbc.debian, "/etc/cron.d/FIRST_BOOT_SSH", 0, 0, 0o644)
+        overlay(s, gbc.debian, "/etc/cron.d/FIRST_BOOT_PARTITION", 0, 0, 0o644)
+        overlay(s, gbc.debian, "/etc/systemd/network/eth0.network", 0, 0, 0o644)
+        overlay(s, gbc.debian, "/etc/resolv.conf", 0, 0, 0o644)
+        overlay(s, gbc.debian, "/etc/fstab", 0, 0, 0o644)
+        overlay(s, gbc.debian, "/etc/hostname", 0, 0, 0o644)
+        overlay(s, gbc.debian, "/boot/uboot_params.txt", 0, 0, 0o644)
+        set_password(s, gbc, "root", "pi2-next")
+
+        add_user(s, gbc, "pi2-next")
+        set_password(s, gbc, "pi2-next", "pi2-next")
+
+        apt_get(s, gbc.debian, ['clean'])
+        enable_services(s, gbc.debian)
     move_image(s, gbc)
