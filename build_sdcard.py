@@ -13,6 +13,7 @@ import glob
 OPJ = os.path.join
 
 DEBIAN_VER = "stretch"
+MIRROR = "http://ftp.us.debian.org/debian/"
 
 class GlobalBuildContext:
     pass
@@ -40,7 +41,7 @@ class download_repo(object):
             with open(debiantar, "rb") as f:
                 ib.check_subprocess(s, [ 'tar', '-C', gbc.tmp, '-zxf', '-' ], stdin=f)
         else:
-            ib.check_subprocess(s, [ 'debootstrap', DEBIAN_VER, gbc.debian ])
+            ib.check_subprocess(s, [ 'debootstrap', DEBIAN_VER, gbc.debian, MIRROR ])
             debiantar = "{0}-bare-{1}.tar.gz".format(DEBIAN_VER, gbc.today)
             with open(OPJ(gbc.repo, debiantar), "wb") as f:
                 ib.check_subprocess(s, [ 'tar', '-C', gbc.tmp, '-zcf', '-', DEBIAN_VER ], stdout=f)
