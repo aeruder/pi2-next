@@ -95,7 +95,7 @@ class overlay(object):
 class create_image(object):
     def run(self, s, gbc):
         gbc.img = OPJ(gbc.tmp, "img.bin")
-        ib.check_subprocess(s, [ 'dd', 'if=/dev/zero', 'of=%s' % gbc.img, 'bs=1048576', 'count=600' ])
+        ib.check_subprocess(s, [ 'dd', 'if=/dev/zero', 'of=%s' % gbc.img, 'bs=1048576', 'count=800' ])
         gbc.dev = ib.loopback.init(s, gbc.img, partscan=True).device
 
 @ib.buildcmd()
