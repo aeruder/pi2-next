@@ -191,7 +191,8 @@ with ib.builder() as s:
 
         disable_services(s1, gbc.debian)
         apt_get(s1, gbc.debian, ['update'])
-        apt_get(s1, gbc.debian, ['-y', 'install', 'openssh-client', 'openssh-server', 'initramfs-tools', 'btrfs-tools'])
+        apt_get(s1, gbc.debian, ['-y', 'install', 'openssh-client',
+            'openssh-server', 'initramfs-tools', 'btrfs-tools', 'parted' ])
         install_packages(s1, gbc)
         remove_keys(s1, gbc)
         run_chroot(s1, gbc.debian, [ 'systemctl', 'enable', 'systemd-networkd.service' ])
@@ -202,7 +203,8 @@ with ib.builder() as s:
         run_chroot(s1, gbc.debian, [ 'ln', '-s', '/run/systemd/resolve/resolv.conf', '/etc/resolv.conf' ])
         overlay(s1, gbc.debian, "/etc/cron.d/FIRST_BOOT_SSH", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/etc/cron.d/FIRST_BOOT_PARTITION", 0, 0, 0o644)
-        overlay(s1, gbc.debian, "/etc/systemd/network/eth0.network", 0, 0, 0o644)
+        overlay(s1, gbc.debian, "/etc/systemd/network/eth.network", 0, 0, 0o644)
+        overlay(s1, gbc.debian, "/etc/systemd/network/enx.network", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/etc/fstab", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/etc/hostname", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/boot/uboot_params.txt", 0, 0, 0o644)

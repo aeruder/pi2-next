@@ -1,1 +1,1 @@
-@reboot root /bin/echo ", +" | /sbin/sfdisk -N 3 /dev/mmcblk0 ; /sbin/btrfs filesystem resize max / ; /bin/rm -f /etc/cron.d/FIRST_BOOT_PARTITION
+@reboot root /bin/echo ", +" | /sbin/sfdisk -N 3 -f /dev/mmcblk0 ; /sbin/partprobe ; /sbin/btrfs filesystem resize max / ; /bin/rm -f /etc/cron.d/FIRST_BOOT_PARTITION
