@@ -186,6 +186,8 @@ with ib.builder() as s:
         format_partitions(s1, gbc)
         mount_partitions(s1, gbc)
         download_repo(s, gbc)
+        ib.file.rm(s, OPJ(gbc.debian, "etc", "resolv.conf"))
+        ib.check_subprocess(s, [ "cp", "-L", "/etc/resolv.conf", OPJ(gbc.debian, "etc", "resolv.conf") ])
 
         disable_services(s, gbc.debian)
         apt_get(s, gbc.debian, ['update'])
