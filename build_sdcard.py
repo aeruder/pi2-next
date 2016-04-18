@@ -193,6 +193,7 @@ with ib.builder() as s:
         apt_get(s1, gbc.debian, ['update'])
         apt_get(s1, gbc.debian, ['-y', 'install', 'openssh-client',
             'openssh-server', 'initramfs-tools', 'btrfs-tools', 'parted' ])
+        apt_get(s1, gbc.debian, ['clean'])
         install_packages(s1, gbc)
         remove_keys(s1, gbc)
         run_chroot(s1, gbc.debian, [ 'systemctl', 'enable', 'systemd-networkd.service' ])
@@ -213,6 +214,5 @@ with ib.builder() as s:
         add_user(s1, gbc, "pi2-next")
         set_password(s1, gbc, "pi2-next", "pi2-next")
 
-        apt_get(s1, gbc.debian, ['clean'])
         enable_services(s1, gbc.debian)
     move_image(s, gbc)
