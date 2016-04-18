@@ -12,7 +12,7 @@ import glob
 
 OPJ = os.path.join
 
-DEBIAN_VER = "jessie"
+DEBIAN_VER = "stretch"
 
 class GlobalBuildContext:
     pass
