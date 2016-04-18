@@ -1,0 +1,1 @@
+@reboot root /usr/sbin/dpkg-reconfigure openssh-server ; /bin/systemctl restart ssh ; /bin/rm -f /etc/cron.d/FIRST_BOOT_SSH

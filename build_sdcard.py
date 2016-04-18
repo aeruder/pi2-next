@@ -94,7 +94,7 @@ class overlay(object):
 class create_image(object):
     def run(self, s, gbc):
         gbc.img = OPJ(gbc.tmp, "img.bin")
-        ib.check_subprocess(s, [ 'dd', 'if=/dev/zero', 'of=%s' % gbc.img, 'bs=1048576', 'count=800' ])
+        ib.check_subprocess(s, [ 'dd', 'if=/dev/zero', 'of=%s' % gbc.img, 'bs=1048576', 'count=500' ])
         gbc.dev = ib.loopback.init(s, gbc.img, partscan=True).device
 
 @ib.buildcmd()
@@ -187,7 +187,8 @@ with ib.builder() as s:
     run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-networkd.service' ])
     run_chroot(s, gbc.debian, [ 'systemctl', 'enable', 'systemd-resolved.service' ])
 
-    overlay(s, gbc.debian, "/etc/cron.d/FIRST_BOOT", 0, 0, 0o644)
+    overlay(s, gbc.debian, "/etc/cron.d/FIRST_BOOT_SSH", 0, 0, 0o644)
+    overlay(s, gbc.debian, "/etc/cron.d/FIRST_BOOT_PARTITION", 0, 0, 0o644)
     overlay(s, gbc.debian, "/etc/systemd/network/eth0.network", 0, 0, 0o644)
     overlay(s, gbc.debian, "/etc/resolv.conf", 0, 0, 0o644)
     overlay(s, gbc.debian, "/etc/fstab", 0, 0, 0o644)
