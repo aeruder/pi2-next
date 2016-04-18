@@ -98,8 +98,6 @@ class clone_uboot(object):
     def run(self, s, gbc):
         gbc.uboot_git = OPJ(gbc.repo, "u-boot.git")
         gbc.uboot = OPJ(gbc.repo, "u-boot")
-        gbc.uboot_deb_d = OPJ(gbc.tmp, 'u-boot-deb')
-        gbc.uboot_deb = OPJ(gbc.tmp, "u-boot-git-{0}-1_armhf.deb".format(gbc.today))
         fetch_git_url(s, gbc.uboot_git, "upstream", UBOOT_URL)
         create_worktree(s, gbc.uboot_git, gbc.uboot, UBOOT_VER)
 
@@ -128,69 +126,88 @@ class create_linux_deb(object):
         compile_linux(s, gbc)
 
 @ib.buildcmd()
-@ib.buildcmd_once()
 class compile_uboot(object):
-    def run(self, s, gbc):
+    def run(self, s, gbc, config):
         clone_uboot(s, gbc)
-        ib.check_subprocess(s, ['make', '-C', gbc.uboot, 'rpi_2_defconfig'])
+        check_git_run(s, gbc.uboot, [ 'reset', '--hard' ])
+        check_git_run(s, gbc.uboot, [ 'clean', '-x', '-d', '-f' ])
+        ib.check_subprocess(s, ['make', '-C', gbc.uboot, config])
         ib.check_subprocess(s, ['make', '-j3', '-C', gbc.uboot])
 
 @ib.buildcmd()
 class create_uboot_deb_helper(object):
-    def run(self, s, gbc):
-        ib.file.install_dir(s, gbc.uboot_deb_d, 0, 0, 0o755)
-        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "boot"), 0, 0, 0o755)
-        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "boot", "firmware"), 0, 0, 0o755)
-        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "etc"), 0, 0, 0o755)
-        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "etc", "kernel"), 0, 0, 0o755)
-        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "etc", "kernel", "postinst.d"), 0, 0, 0o755)
+    def run(self, s, gbc, deb_d, pkg, target):
+        ib.file.install_dir(s, deb_d, 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(deb_d, "boot"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(deb_d, "boot", "firmware"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(deb_d, "etc"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(deb_d, "etc", "kernel"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(deb_d, "etc", "kernel", "postinst.d"), 0, 0, 0o755)
         ib.file.install(s, OPJ("u-boot-deb", "zz-u-boot"),
-                OPJ(gbc.uboot_deb_d, "etc", "kernel", "postinst.d", "zz-u-boot"), 0, 0, 0o755)
+                OPJ(deb_d, "etc", "kernel", "postinst.d", "zz-u-boot"), 0, 0, 0o755)
         ib.file.install(s, OPJ("u-boot-deb", "config.txt"),
-                OPJ(gbc.uboot_deb_d, "boot", "firmware", "config.txt"), 0, 0, 0o644)
+                OPJ(deb_d, "boot", "firmware", "config.txt"), 0, 0, 0o644)
         ib.file.install(s, OPJ("u-boot-deb", "cmdline.txt"),
-                OPJ(gbc.uboot_deb_d, "boot", "firmware", "cmdline.txt"), 0, 0, 0o644)
-        ib.file.install_dir(s, OPJ(gbc.uboot_deb_d, "DEBIAN"), 0, 0, 0o755)
-        with open(OPJ(gbc.uboot_deb_d, "DEBIAN", "conffiles"), "w") as f:
+                OPJ(deb_d, "boot", "firmware", "cmdline.txt"), 0, 0, 0o644)
+        ib.file.install_dir(s, OPJ(deb_d, "DEBIAN"), 0, 0, 0o755)
+        with open(OPJ(deb_d, "DEBIAN", "conffiles"), "w") as f:
             print(textwrap.dedent("""\
                     /boot/firmware/cmdline.txt
                     /boot/firmware/config.txt
                     /boot/firmware/uboot.env"""), file=f)
-        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "DEBIAN", "conffiles"), 0o644)
-        with open(OPJ(gbc.uboot_deb_d, "DEBIAN", "control"), "w") as f:
+        ib.file.chmod(s, OPJ(deb_d, "DEBIAN", "conffiles"), 0o644)
+        with open(OPJ(deb_d, "DEBIAN", "control"), "w") as f:
             print(textwrap.dedent("""\
-                    Package: u-boot-git
+                    Package: {2}
                     Version: {0}-1
                     Section: kernel
                     Priority: optional
                     Architecture: armhf
                     Maintainer: Andrew Ruder <andy@aeruder.net>
-                    Description: U-Boot for raspberry pi 2 + 3
-                      This is a debian package generated from the u-boot git repository""").format(gbc.today),
+                    Description: U-Boot for raspberry {1}
+                      This is a debian package generated from the u-boot git repository""").format(gbc.today, target, pkg),
                     file=f)
-        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "DEBIAN", "control"), 0o644)
+        ib.file.chmod(s, OPJ(deb_d, "DEBIAN", "control"), 0o644)
         with open("u-boot-env.txt", "r") as fin:
             with open(OPJ(gbc.tmp, "u-boot-env-stripped.txt"), "wb") as fout:
                 ib.check_subprocess(s, [ 'bash', OPJ("utils", "env_filter.sh") ],
                         stdin=fin, stdout=fout)
         ib.check_subprocess(s, [ OPJ(gbc.uboot, "tools", "mkenvimage"), "-p", "0",
-            "-s", "16384", "-o", OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.env"),
+            "-s", "16384", "-o", OPJ(deb_d, "boot", "firmware", "uboot.env"),
             OPJ(gbc.tmp, "u-boot-env-stripped.txt") ])
-        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.env"), 0o644)
+        ib.file.chmod(s, OPJ(deb_d, "boot", "firmware", "uboot.env"), 0o644)
 
         ib.check_subprocess(s, [ OPJ(gbc.linux, "scripts", "mkknlimg"), "--dtok", "--270x",
-            OPJ(gbc.uboot, "u-boot.bin"), OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.bin") ])
-        ib.file.chmod(s, OPJ(gbc.uboot_deb_d, "boot", "firmware", "uboot.bin"), 0o644)
+            OPJ(gbc.uboot, "u-boot.bin"), OPJ(deb_d, "boot", "firmware", "uboot.bin") ])
+        ib.file.chmod(s, OPJ(deb_d, "boot", "firmware", "uboot.bin"), 0o644)
 
-        ib.check_subprocess(s, [ "dpkg-deb", "-b", gbc.uboot_deb_d, gbc.uboot_deb ])
+        ib.check_subprocess(s, [ "dpkg-deb", "-b", deb_d, OPJ(gbc.tmp, "%s-%s-1_armhf.deb" % (pkg, gbc.today))])
+
+@ib.buildcmd()
+class create_uboot_pi2_deb_helper(object):
+    def run(self, s, gbc):
+        create_uboot_deb_helper(s, gbc, OPJ(gbc.tmp, "uboot-pi2-deb"), "u-boot-pi2-git", "pi2")
+
+@ib.buildcmd()
+class create_uboot_pi3_deb_helper(object):
+    def run(self, s, gbc):
+        create_uboot_deb_helper(s, gbc, OPJ(gbc.tmp, "uboot-pi3-deb"), "u-boot-pi3-git", "pi3")
 
 @ib.buildcmd()
 @ib.buildcmd_once()
-class create_uboot_deb(object):
+class create_uboot_pi2_deb(object):
     def run(self, s, gbc):
         clone_linux(s, gbc)
-        compile_uboot(s, gbc)
-        run_with_fakeroot(s, gbc, create_uboot_deb_helper)
+        compile_uboot(s, gbc, "rpi_2_defconfig")
+        run_with_fakeroot(s, gbc, create_uboot_pi2_deb_helper)
+
+@ib.buildcmd()
+@ib.buildcmd_once()
+class create_uboot_pi3_deb(object):
+    def run(self, s, gbc):
+        clone_linux(s, gbc)
+        compile_uboot(s, gbc, "rpi_3_32b_defconfig")
+        run_with_fakeroot(s, gbc, create_uboot_pi3_deb_helper)
 
 @ib.buildcmd()
 class create_firmware_deb_helper(object):
@@ -301,8 +318,10 @@ with ib.builder() as s:
         gbc = setup_gbc(s).gbc
 
         try:
-            if len(glob.glob(OPJ('packages', 'u-boot-git-*.deb'))) == 0:
-                create_uboot_deb(s, gbc)
+            if len(glob.glob(OPJ('packages', 'u-boot-pi2-git-*.deb'))) == 0:
+                create_uboot_pi2_deb(s, gbc)
+            if len(glob.glob(OPJ('packages', 'u-boot-pi3-git-*.deb'))) == 0:
+                create_uboot_pi3_deb(s, gbc)
             if len(glob.glob(OPJ('packages', 'raspberrypi-firmware-git-*.deb'))) == 0:
                 create_firmware_deb(s, gbc)
             if len(glob.glob(OPJ('packages', 'linux-*.deb'))) != 4:

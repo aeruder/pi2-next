@@ -144,7 +144,7 @@ class install_packages(object):
     def run(self, s, gbc):
         for a in glob.glob(OPJ("packages", "raspberrypi-firmware-git-*.deb")):
             install_deb(s, gbc.debian, a)
-        for a in glob.glob(OPJ("packages", "u-boot-git-*.deb")):
+        for a in glob.glob(OPJ("packages", "u-boot-%s-git-*.deb" % gbc.build)):
             install_deb(s, gbc.debian, a)
         for a in glob.glob(OPJ("packages", "linux-*.deb")):
             install_deb(s, gbc.debian, a)
@@ -152,7 +152,7 @@ class install_packages(object):
 @ib.buildcmd()
 class move_image(object):
     def run(self, s, gbc):
-        with open("rpi2-next-%s.img.gz" % gbc.today, "wb") as f1:
+        with open("r%s-next-%s.img.gz" % (gbc.build, gbc.today), "wb") as f1:
             with open(gbc.img, "rb") as f2:
                 ib.check_subprocess(s, [ "gzip", "-c" ], stdin=f2, stdout=f1)
 
@@ -179,6 +179,17 @@ class add_user(object):
 with ib.builder() as s:
     ib.check_root(s)
     gbc = setup_gbc(s).gbc
+
+    if len(sys.argv) != 2:
+        print("Usage: %s <pi2|pi3>" % sys.argv[0])
+        sys.exit(1)
+    elif sys.argv[1] == "pi2":
+        gbc.build = "pi2"
+    elif sys.argv[1] == "pi3":
+        gbc.build = "pi3"
+    else:
+        print("Usage: %s <pi2|pi3>" % sys.argv[0])
+        sys.exit(1)
 
     with ib.builder() as s1:
         create_image(s1, gbc)
@@ -207,12 +218,14 @@ with ib.builder() as s:
         overlay(s1, gbc.debian, "/etc/systemd/network/eth.network", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/etc/systemd/network/enx.network", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/etc/fstab", 0, 0, 0o644)
-        overlay(s1, gbc.debian, "/etc/hostname", 0, 0, 0o644)
+        with open(OPJ(gbc.debian, "etc", "hostname"), "w") as f:
+            print("%s-next" % gbc.build, file=f)
+        ib.file.chmod(s1, OPJ(gbc.debian, "etc", "hostname"), 0o644)
         overlay(s1, gbc.debian, "/boot/uboot_params.txt", 0, 0, 0o644)
-        set_password(s1, gbc, "root", "pi2-next")
+        set_password(s1, gbc, "root", "%s-next" % gbc.build)
 
-        add_user(s1, gbc, "pi2-next")
-        set_password(s1, gbc, "pi2-next", "pi2-next")
+        add_user(s1, gbc, "%s-next" % gbc.build)
+        set_password(s1, gbc, "%s-next" % gbc.build, "%s-next" % gbc.build)
 
         enable_services(s1, gbc.debian)
     move_image(s, gbc)
