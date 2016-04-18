@@ -39,7 +39,7 @@ class download_repo(object):
         if debiantar != None:
             s.info("Found %s, skipping debootstrap" % debiantar)
             with open(debiantar, "rb") as f:
-                ib.check_subprocess(s, [ 'tar', '--strip-components=1', '-C', gbc.tmp, '-zxf', '-' ], stdin=f)
+                ib.check_subprocess(s, [ 'tar', '--strip-components=1', '-C', gbc.debian, '-zxf', '-' ], stdin=f)
         else:
             ib.check_subprocess(s, [ 'debootstrap', DEBIAN_VER, gbc.debian, MIRROR ])
             debiantar = "{0}-bare-{1}.tar.gz".format(DEBIAN_VER, gbc.today)
