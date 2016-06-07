@@ -69,6 +69,8 @@ class create_worktree(object):
         else:
             check_git_run(s, from_repo, [ 'worktree', 'add', '--detach',
                     os.path.abspath(to_repo), head ])
+        for a in glob.glob(OPJ(to_repo, "..", "linux-*.deb")):
+            ib.file.rm(s, a)
 
 @ib.buildcmd()
 @ib.buildcmd_once()
@@ -312,6 +314,9 @@ class move_packages(object):
     def run(self, s, gbc):
         for a in glob.glob(OPJ(gbc.tmp, '*.deb')):
             ib.file.copy(s, a, 'packages')
+        if hasattr(gbc, "linux"):
+            for a in glob.glob(OPJ(gbc.linux, "..", "linux-*.deb")):
+                ib.file.copy(s, a, "packages")
 
 with ib.builder() as s:
     if not resume(s).resumed:
