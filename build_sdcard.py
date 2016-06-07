@@ -92,6 +92,14 @@ class overlay(object):
         ib.file.install(s, from_path, to_path, uid, gid, perm)
 
 @ib.buildcmd()
+@ib.buildcmd_flatten()
+class soverlay(object):
+    def run(self, s, gbc, root, path, uid, gid, perm):
+        from_path = "overlay" + path + "." + gbc.build
+        to_path = root + path
+        ib.file.install(s, from_path, to_path, uid, gid, perm)
+
+@ib.buildcmd()
 class create_image(object):
     def run(self, s, gbc):
         gbc.img = OPJ(gbc.tmp, "img.bin")
@@ -203,7 +211,8 @@ with ib.builder() as s:
         disable_services(s1, gbc.debian)
         apt_get(s1, gbc.debian, ['update'])
         apt_get(s1, gbc.debian, ['-y', 'install', 'openssh-client',
-            'openssh-server', 'initramfs-tools', 'btrfs-tools', 'parted' ])
+                                 'openssh-server', 'initramfs-tools', 'btrfs-tools', 'parted',
+                                 'wpasupplicant'])
         apt_get(s1, gbc.debian, ['clean'])
         install_packages(s1, gbc)
         remove_keys(s1, gbc)
@@ -217,11 +226,12 @@ with ib.builder() as s:
         overlay(s1, gbc.debian, "/etc/cron.d/FIRST_BOOT_PARTITION", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/etc/systemd/network/eth.network", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/etc/systemd/network/enx.network", 0, 0, 0o644)
+        overlay(s1, gbc.debian, "/etc/systemd/system/wpa_supplicant@.service", 0, 0, 0o644)
         overlay(s1, gbc.debian, "/etc/fstab", 0, 0, 0o644)
         with open(OPJ(gbc.debian, "etc", "hostname"), "w") as f:
             print("%s-next" % gbc.build, file=f)
         ib.file.chmod(s1, OPJ(gbc.debian, "etc", "hostname"), 0o644)
-        overlay(s1, gbc.debian, "/boot/uboot_params.txt", 0, 0, 0o644)
+        soverlay(s1, gbc, gbc.debian, "/boot/uboot_params.txt", 0, 0, 0o644)
         set_password(s1, gbc, "root", "%s-next" % gbc.build)
 
         add_user(s1, gbc, "%s-next" % gbc.build)
