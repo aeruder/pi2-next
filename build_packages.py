@@ -12,9 +12,9 @@ import glob
 
 OPJ = os.path.join
 
-UBOOT_VER = "v2016.05"
+UBOOT_VER = "v2017.03-rc2"
 UBOOT_URL = 'git://git.denx.de/u-boot.git'
-LINUX_VER = "github/rpi-4.6.y"
+LINUX_VER = "github/rpi-4.9.y"
 LINUX_URL = "https://github.com/raspberrypi/linux"
 LINUX_UPSTREAM_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
 LINUX_STABLE_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git"
