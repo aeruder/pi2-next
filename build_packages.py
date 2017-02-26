@@ -109,7 +109,7 @@ class compile_linux(object):
     def run(self, s, gbc):
         clone_linux(s, gbc)
         ib.check_subprocess(s, ['cp', 'linux-config', OPJ(gbc.linux, '.config')])
-        ib.check_subprocess(s, ['make', '-C', gbc.linux, 'oldconfig'], stdin=subprocess.DEVNULL)
+        ib.check_subprocess(s, ['make', '-C', gbc.linux, 'olddefconfig'], stdin=subprocess.DEVNULL)
         ib.check_subprocess(s, ['make', '-j3', '-C', gbc.linux, 'deb-pkg'])
 
 @ib.buildcmd()
