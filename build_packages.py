@@ -9,12 +9,14 @@ import textwrap
 import datetime
 import shutil
 import glob
+import subprocess
 
 OPJ = os.path.join
 
 UBOOT_VER = "v2017.03-rc2"
 UBOOT_URL = 'git://git.denx.de/u-boot.git'
-LINUX_VER = "github/rpi-4.9.y"
+LINUX_VER = "upstream/master"
+LINUX_TOOLS_VER = "github/rpi-4.9.y"
 LINUX_URL = "https://github.com/raspberrypi/linux"
 LINUX_UPSTREAM_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
 LINUX_STABLE_URL = "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git"
@@ -65,7 +67,8 @@ class create_worktree(object):
         if os.path.isdir(to_repo):
             check_git_run(s, to_repo, [ 'checkout', '-f', '--detach', head ])
             check_git_run(s, to_repo, [ 'reset', '--hard' ])
-            check_git_run(s, to_repo, [ 'clean', '-x', '-d', '-f' ])
+            if os.getenv('SKIP_CLEAN', '0') != '1':
+                check_git_run(s, to_repo, [ 'clean', '-x', '-d', '-f' ])
         else:
             check_git_run(s, from_repo, [ 'worktree', 'add', '--detach',
                     os.path.abspath(to_repo), head ])
@@ -74,13 +77,28 @@ class create_worktree(object):
 
 @ib.buildcmd()
 @ib.buildcmd_once()
-class clone_linux(object):
+class setup_clone_linux(object):
     def run(self, s, gbc):
         gbc.linux_git = OPJ(gbc.repo, "linux.git")
-        gbc.linux = OPJ(gbc.repo, "linux")
         fetch_git_url(s, gbc.linux_git, "github", LINUX_URL)
         fetch_git_url(s, gbc.linux_git, "upstream", LINUX_UPSTREAM_URL)
         fetch_git_url(s, gbc.linux_git, "stable", LINUX_STABLE_URL)
+
+@ib.buildcmd()
+@ib.buildcmd_once()
+class clone_linux_tools(object):
+    def run(self, s, gbc):
+        setup_clone_linux(s, gbc)
+        gbc.linux_tools = OPJ(gbc.repo, "linux-rpi-tools")
+        create_worktree(s, gbc.linux_git, gbc.linux_tools, LINUX_TOOLS_VER)
+
+
+@ib.buildcmd()
+@ib.buildcmd_once()
+class clone_linux(object):
+    def run(self, s, gbc):
+        setup_clone_linux(s, gbc)
+        gbc.linux = OPJ(gbc.repo, "linux")
         create_worktree(s, gbc.linux_git, gbc.linux, LINUX_VER)
 
 @ib.buildcmd()
@@ -99,46 +117,82 @@ class clone_firmware(object):
 class clone_uboot(object):
     def run(self, s, gbc):
         gbc.uboot_git = OPJ(gbc.repo, "u-boot.git")
-        gbc.uboot = OPJ(gbc.repo, "u-boot")
+        gbc.uboot_pi2 = OPJ(gbc.repo, "u-boot-pi2")
+        gbc.uboot_pi3 = OPJ(gbc.repo, "u-boot-pi3")
         fetch_git_url(s, gbc.uboot_git, "upstream", UBOOT_URL)
-        create_worktree(s, gbc.uboot_git, gbc.uboot, UBOOT_VER)
+        create_worktree(s, gbc.uboot_git, gbc.uboot_pi2, UBOOT_VER)
+        create_worktree(s, gbc.uboot_git, gbc.uboot_pi3, UBOOT_VER)
 
 @ib.buildcmd()
 @ib.buildcmd_once()
-class compile_linux(object):
+class pre_compile_linux(object):
     def run(self, s, gbc):
         clone_linux(s, gbc)
         ib.check_subprocess(s, ['cp', 'linux-config', OPJ(gbc.linux, '.config')])
-        ib.check_subprocess(s, ['make', '-C', gbc.linux, 'olddefconfig'], stdin=subprocess.DEVNULL)
-        ib.check_subprocess(s, ['make', '-j3', '-C', gbc.linux, 'deb-pkg'])
-
-@ib.buildcmd()
-@ib.buildcmd_once()
-class compile_linux(object):
-    def run(self, s, gbc):
-        clone_linux(s, gbc)
-        ib.check_subprocess(s, ['cp', 'linux-config', OPJ(gbc.linux, '.config')])
-        ib.check_subprocess(s, ['make', '-C', gbc.linux, 'olddefconfig'], stdin=subprocess.DEVNULL)
-        ib.check_subprocess(s, ['make', '-j3', '-C', gbc.linux, 'deb-pkg'])
+        ib.check_subprocess(s, ['make', '-j4', '-C', gbc.linux, 'olddefconfig'], stdin=subprocess.DEVNULL)
 
 @ib.buildcmd()
 @ib.buildcmd_once()
 class create_linux_deb(object):
     def run(self, s, gbc):
-        compile_linux(s, gbc)
+        pre_compile_linux(s, gbc)
+        ib.check_subprocess(s, ['make', '-j4', '-C', gbc.linux, 'bindeb-pkg'])
 
 @ib.buildcmd()
-class compile_uboot(object):
-    def run(self, s, gbc, config):
+class create_linux_dtb_deb_fakeroot(object):
+    def run(self, s, gbc):
+        deb_d = OPJ(gbc.tmp, "linux-dtb-deb")
+        install_path = OPJ(deb_d, "boot", "firmware")
+        ib.file.install_dir(s, deb_d, 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(deb_d, "boot"), 0, 0, 0o755)
+        ib.file.install_dir(s, OPJ(deb_d, "boot", "firmware"), 0, 0, 0o755)
+        ib.check_subprocess(s, ['make', '-C', gbc.linux, 'INSTALL_DTBS_PATH=%s' % install_path, 'dtbs_install'])
+        ib.file.install_dir(s, OPJ(deb_d, "DEBIAN"), 0, 0, 0o755)
+        with open(OPJ(deb_d, "DEBIAN", "control"), "w") as f:
+            print(textwrap.dedent("""\
+                    Package: linux-dtb
+                    Version: {0}-1
+                    Section: kernel
+                    Priority: optional
+                    Architecture: armhf
+                    Maintainer: Andrew Ruder <andy@aeruder.net>
+                    Description: DTB files for Raspberry PI
+                      This is a debian package generated from the linux git repository""").format(gbc.linux_version),
+                    file=f)
+        ib.file.chmod(s, OPJ(deb_d, "DEBIAN", "control"), 0o644)
+        ib.check_subprocess(s, [ "dpkg-deb", "-b", deb_d, OPJ(gbc.tmp, "linux-dtb-%s-1_armhf.deb" % gbc.linux_version)])
+
+
+@ib.buildcmd()
+@ib.buildcmd_once()
+class create_linux_dtb_deb(object):
+    def run(self, s, gbc):
+        pre_compile_linux(s, gbc)
+        ib.check_subprocess(s, ['make', '-C', gbc.linux, '-j4', 'dtbs'])
+        version = subprocess.Popen(['make', '-s', '-C', gbc.linux, 'kernelrelease'], stdout=subprocess.PIPE).communicate()[0]
+        version = version.decode('utf-8').split()[0]
+        gbc.linux_version = version
+        run_with_fakeroot(s, gbc, create_linux_dtb_deb_fakeroot)
+
+@ib.buildcmd()
+@ib.buildcmd_once()
+class compile_uboot_pi2(object):
+    def run(self, s, gbc):
         clone_uboot(s, gbc)
-        check_git_run(s, gbc.uboot, [ 'reset', '--hard' ])
-        check_git_run(s, gbc.uboot, [ 'clean', '-x', '-d', '-f' ])
-        ib.check_subprocess(s, ['make', '-C', gbc.uboot, config])
-        ib.check_subprocess(s, ['make', '-j3', '-C', gbc.uboot])
+        ib.check_subprocess(s, ['make', '-C', gbc.uboot_pi2, "rpi_2_defconfig"])
+        ib.check_subprocess(s, ['make', '-j4', '-C', gbc.uboot_pi2])
+
+@ib.buildcmd()
+@ib.buildcmd_once()
+class compile_uboot_pi3(object):
+    def run(self, s, gbc):
+        clone_uboot(s, gbc)
+        ib.check_subprocess(s, ['make', '-C', gbc.uboot_pi3, "rpi_3_32b_defconfig"])
+        ib.check_subprocess(s, ['make', '-j4', '-C', gbc.uboot_pi3])
 
 @ib.buildcmd()
 class create_uboot_deb_helper(object):
-    def run(self, s, gbc, deb_d, pkg, target):
+    def run(self, s, gbc, build_d, deb_d, pkg, target):
         ib.file.install_dir(s, deb_d, 0, 0, 0o755)
         ib.file.install_dir(s, OPJ(deb_d, "boot"), 0, 0, 0o755)
         ib.file.install_dir(s, OPJ(deb_d, "boot", "firmware"), 0, 0, 0o755)
@@ -174,13 +228,13 @@ class create_uboot_deb_helper(object):
             with open(OPJ(gbc.tmp, "u-boot-env-stripped.txt"), "wb") as fout:
                 ib.check_subprocess(s, [ 'bash', OPJ("utils", "env_filter.sh") ],
                         stdin=fin, stdout=fout)
-        ib.check_subprocess(s, [ OPJ(gbc.uboot, "tools", "mkenvimage"), "-p", "0",
+        ib.check_subprocess(s, [ OPJ(build_d, "tools", "mkenvimage"), "-p", "0",
             "-s", "16384", "-o", OPJ(deb_d, "boot", "firmware", "uboot.env"),
             OPJ(gbc.tmp, "u-boot-env-stripped.txt") ])
         ib.file.chmod(s, OPJ(deb_d, "boot", "firmware", "uboot.env"), 0o644)
 
-        ib.check_subprocess(s, [ OPJ(gbc.linux, "scripts", "mkknlimg"), "--dtok", "--270x",
-            OPJ(gbc.uboot, "u-boot.bin"), OPJ(deb_d, "boot", "firmware", "uboot.bin") ])
+        ib.check_subprocess(s, [ OPJ(gbc.linux_tools, "scripts", "mkknlimg"), "--dtok", "--283x",
+            OPJ(build_d, "u-boot.bin"), OPJ(deb_d, "boot", "firmware", "uboot.bin") ])
         ib.file.chmod(s, OPJ(deb_d, "boot", "firmware", "uboot.bin"), 0o644)
 
         ib.check_subprocess(s, [ "dpkg-deb", "-b", deb_d, OPJ(gbc.tmp, "%s-%s-1_armhf.deb" % (pkg, gbc.today))])
@@ -188,27 +242,27 @@ class create_uboot_deb_helper(object):
 @ib.buildcmd()
 class create_uboot_pi2_deb_helper(object):
     def run(self, s, gbc):
-        create_uboot_deb_helper(s, gbc, OPJ(gbc.tmp, "uboot-pi2-deb"), "u-boot-pi2-git", "pi2")
+        create_uboot_deb_helper(s, gbc, gbc.uboot_pi2, OPJ(gbc.tmp, "uboot-pi2-deb"), "u-boot-pi2-git", "pi2")
 
 @ib.buildcmd()
 class create_uboot_pi3_deb_helper(object):
     def run(self, s, gbc):
-        create_uboot_deb_helper(s, gbc, OPJ(gbc.tmp, "uboot-pi3-deb"), "u-boot-pi3-git", "pi3")
+        create_uboot_deb_helper(s, gbc, gbc.uboot_pi3, OPJ(gbc.tmp, "uboot-pi3-deb"), "u-boot-pi3-git", "pi3")
 
 @ib.buildcmd()
 @ib.buildcmd_once()
 class create_uboot_pi2_deb(object):
     def run(self, s, gbc):
-        clone_linux(s, gbc)
-        compile_uboot(s, gbc, "rpi_2_defconfig")
+        clone_linux_tools(s, gbc)
+        compile_uboot_pi2(s, gbc)
         run_with_fakeroot(s, gbc, create_uboot_pi2_deb_helper)
 
 @ib.buildcmd()
 @ib.buildcmd_once()
 class create_uboot_pi3_deb(object):
     def run(self, s, gbc):
-        clone_linux(s, gbc)
-        compile_uboot(s, gbc, "rpi_3_32b_defconfig")
+        clone_linux_tools(s, gbc)
+        compile_uboot_pi3(s, gbc)
         run_with_fakeroot(s, gbc, create_uboot_pi3_deb_helper)
 
 @ib.buildcmd()
@@ -323,14 +377,25 @@ with ib.builder() as s:
         gbc = setup_gbc(s).gbc
 
         try:
+            if len(glob.glob(OPJ('packages', 'linux-dtb-*.deb'))) == 0:
+                create_linux_dtb_deb(s, gbc)
             if len(glob.glob(OPJ('packages', 'u-boot-pi2-git-*.deb'))) == 0:
                 create_uboot_pi2_deb(s, gbc)
             if len(glob.glob(OPJ('packages', 'u-boot-pi3-git-*.deb'))) == 0:
                 create_uboot_pi3_deb(s, gbc)
             if len(glob.glob(OPJ('packages', 'raspberrypi-firmware-git-*.deb'))) == 0:
                 create_firmware_deb(s, gbc)
-            if len(glob.glob(OPJ('packages', 'linux-*.deb'))) != 4:
-                for a in glob.glob(OPJ('packages', 'linux-*.deb')):
+            if (len(glob.glob(OPJ('packages', 'linux-firmware-image-*.deb'))) == 0 or
+                len(glob.glob(OPJ('packages', 'linux-image-*.deb'))) == 0 or
+                len(glob.glob(OPJ('packages', 'linux-libc-dev-*.deb'))) == 0 or
+                len(glob.glob(OPJ('packages', 'linux-headers-*.deb'))) == 0):
+                for a in glob.glob(OPJ('packages', 'linux-firmware-image-*.deb')):
+                    ib.file.rm(s, a)
+                for a in glob.glob(OPJ('packages', 'linux-image-*.deb')):
+                    ib.file.rm(s, a)
+                for a in glob.glob(OPJ('packages', 'linux-libc-dev-*.deb')):
+                    ib.file.rm(s, a)
+                for a in glob.glob(OPJ('packages', 'linux-headers-*.deb')):
                     ib.file.rm(s, a)
                 create_linux_deb(s, gbc)
 
