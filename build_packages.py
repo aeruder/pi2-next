@@ -387,13 +387,13 @@ with ib.builder() as s:
                 create_firmware_deb(s, gbc)
             if (len(glob.glob(OPJ('packages', 'linux-firmware-image-*.deb'))) == 0 or
                 len(glob.glob(OPJ('packages', 'linux-image-*.deb'))) == 0 or
-                len(glob.glob(OPJ('packages', 'linux-libc-dev-*.deb'))) == 0 or
+                len(glob.glob(OPJ('packages', 'linux-libc-dev*.deb'))) == 0 or
                 len(glob.glob(OPJ('packages', 'linux-headers-*.deb'))) == 0):
                 for a in glob.glob(OPJ('packages', 'linux-firmware-image-*.deb')):
                     ib.file.rm(s, a)
                 for a in glob.glob(OPJ('packages', 'linux-image-*.deb')):
                     ib.file.rm(s, a)
-                for a in glob.glob(OPJ('packages', 'linux-libc-dev-*.deb')):
+                for a in glob.glob(OPJ('packages', 'linux-libc-dev*.deb')):
                     ib.file.rm(s, a)
                 for a in glob.glob(OPJ('packages', 'linux-headers-*.deb')):
                     ib.file.rm(s, a)
